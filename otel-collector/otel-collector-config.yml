@@ -1,0 +1,105 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:8080"
+            - "http://*"
+          allowed_headers:
+            - "*"
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - key: service.instance.id
+        value: ${env:HOSTNAME}
+        action: insert
+      - key: loki.resource.labels
+        value: service.name, service.instance.id, deployment.environment
+        action: insert
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+  # Attributes processor for additional metadata
+  attributes:
+    actions:
+      - key: environment
+        value: "lab"
+        action: insert
+
+  # Attributes processor for logs - copies resource attributes to log record attributes
+  attributes/logs:
+    actions:
+      - key: service.name
+        from_context: resource
+        action: insert
+      - key: service.instance.id
+        from_context: resource
+        action: insert
+      - key: level
+        from_attribute: severity_text
+        action: insert
+      - key: loki.attribute.labels
+        value: level
+        action: insert
+
+exporters:
+  # Tempo for traces
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Loki for logs
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    tls:
+      insecure: true
+
+  # Logging exporter for debugging (optional)
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # NOTE: Prometheus exporters removed - metrics now come ONLY from
+  # prometheus_client library exposed at Flask /metrics endpoint.
+  # This eliminates metric duplication and simplifies the pipeline.
+  # OTel traces and logs still flow through collector to Tempo/Loki.
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes, batch]
+      exporters: [otlp/tempo, logging]
+
+    # Metrics pipeline removed - Flask app now uses prometheus_client
+    # to expose metrics directly at /metrics endpoint for Prometheus scraping.
+    # This eliminates duplication with OTel SDK metrics.
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes, attributes/logs, batch]
+      exporters: [loki, logging]

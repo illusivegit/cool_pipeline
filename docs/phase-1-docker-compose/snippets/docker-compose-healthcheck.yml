@@ -1,0 +1,31 @@
+# Docker Compose Healthcheck Configuration
+# Source: docker-compose.yml
+# Reference: DESIGN-DECISIONS.md DD-016
+
+# Backend service with Python-based healthcheck
+backend:
+  build: ./backend
+  container_name: flask-backend
+  healthcheck:
+    # Use Python (already available in python:3.12-slim image)
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+    interval: 10s        # Check every 10 seconds
+    timeout: 5s          # Fail if check takes >5 seconds
+    retries: 3           # Retry 3 times before marking unhealthy
+    start_period: 30s    # Grace period before first check
+
+# Frontend service with healthcheck dependency
+frontend:
+  image: nginx:alpine
+  container_name: frontend
+  depends_on:
+    backend:
+      condition: service_healthy  # Wait for backend to be healthy
+
+# Why Python instead of curl?
+# - Python is already in python:3.12-slim (zero dependencies)
+# - curl/wget require apt-get install (adds 5MB+ to image)
+# - urllib.request is built-in and works reliably
+
+# Health endpoint implementation:
+# See: flask-healthcheck.py for complete Flask implementation

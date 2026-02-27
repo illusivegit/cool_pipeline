@@ -1,0 +1,89 @@
+# OpenTelemetry Collector - Log Pipeline Configuration
+# Source: otel-collector/otel-collector-config.yml
+# Reference: DESIGN-DECISIONS.md DD-014, CONFIGURATION-REFERENCE.md
+
+processors:
+  # Resource processor: Adds resource attributes to all telemetry
+  resource:
+    attributes:
+      - key: service.instance.id
+        value: ${env:HOSTNAME}
+        action: insert
+
+      # Loki label hint: Promotes resource attributes to Loki labels
+      # This is the MODERN approach (OTel Collector 0.96.0+)
+      - key: loki.resource.labels
+        value: service.name, service.instance.id, deployment.environment
+        action: insert
+
+  # Attributes processor for logs: Enriches log records
+  attributes/logs:
+    actions:
+      # Copy resource attributes to log record attributes
+      - key: service.name
+        from_context: resource
+        action: insert
+
+      - key: service.instance.id
+        from_context: resource
+        action: insert
+
+      # Map severity_text to 'level' for Loki filtering
+      - key: level
+        from_attribute: severity_text
+        action: insert
+
+      # Loki label hint: Promotes 'level' to Loki label for filtering
+      - key: loki.attribute.labels
+        value: level
+        action: insert
+
+exporters:
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    tls:
+      insecure: true
+    # No 'labels' config needed! Using attribute hints in processors above
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors:
+        - memory_limiter    # Prevent OOM
+        - resource          # Add instance ID + label hints
+        - attributes        # Enrich with environment
+        - attributes/logs   # Promote level to label
+        - batch             # Optimize sending
+      exporters: [loki, logging]  # Send to Loki + debug logs
+
+# How attribute hints work:
+#
+# 1. Resource attributes with 'loki.resource.labels' hint:
+#    service.name=flask-backend → Loki label {service_name="flask-backend"}
+#    deployment.environment=lab → Loki label {deployment_environment="lab"}
+#
+# 2. Log attributes with 'loki.attribute.labels' hint:
+#    level=ERROR → Loki label {level="ERROR"}
+#
+# 3. Query in Loki:
+#    {service_name="flask-backend", level="ERROR"}  # Uses indexes
+#    |= "database connection"                       # Full-text search
+#
+# Why not explicit labels config?
+# OLD WAY (deprecated):
+#   loki:
+#     labels:
+#       attributes:
+#         service.name: ""
+#         level: ""
+#
+# NEW WAY (attribute hints):
+#   - More flexible: Add labels without changing exporter config
+#   - Self-documenting: Hints defined where attributes created
+#   - Version-safe: Works with OTel Collector 0.96.0+
+#
+# Best practices:
+# - Keep labels count low: 5-10 max (each unique combo = index entry)
+# - Use bounded cardinality: level (5 values) not user_id (millions)
+# - Filter with labels first, then log content: {level="ERROR"} |= "timeout"

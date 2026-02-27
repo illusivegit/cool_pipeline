@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+
+# Database
+backend/data/*.db
+backend/data/*.db-journal
+
+# Docker volumes
+**/data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Grafana
+grafana/data/
+
+# IMPORTANT: Private documentation archive (strategic IP protection)
+PRIVATE_DOCS_ARCHIVE/

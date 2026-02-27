@@ -1,0 +1,12 @@
+docker network create jenkins-net
+
+docker run -d --name jenkins-controller --network jenkins-net \
+-p 8080:8080 -p 50000:50000 \
+--restart=on-failure -v jenkins_home:/var/jenkins_home \
+jenkins/jenkins:lts-jdk17
+
+docker run --name jenkins-agent --init --network jenkins-net \
+  jenkins-inbound-agent-with-jq-docker-rsync \
+  -url http://jenkins-controller:8080 \
+  -secret 008860efff39059fd2e3c22905027516ff856bb8573337e89644c322e3cfe351 \
+  -name docker-agent1

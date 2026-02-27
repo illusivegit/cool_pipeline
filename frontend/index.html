@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - OpenTelemetry Observability Lab</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- OpenTelemetry Browser SDK -->
+    <script src="https://unpkg.com/@opentelemetry/api@1.7.0/build/esm/index.js" type="module"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Task Manager</h1>
+            <p class="subtitle">OpenTelemetry Observability Lab</p>
+        </header>
+
+        <div class="stats-bar">
+            <div class="stat-card">
+                <span class="stat-label">Total Tasks</span>
+                <span class="stat-value" id="total-tasks">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Completed</span>
+                <span class="stat-value" id="completed-tasks">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Pending</span>
+                <span class="stat-value" id="pending-tasks">0</span>
+            </div>
+        </div>
+
+        <div class="add-task-section">
+            <h2>Add New Task</h2>
+            <form id="task-form">
+                <div class="form-group">
+                    <input
+                        type="text"
+                        id="task-title"
+                        placeholder="Task title"
+                        required
+                    >
+                </div>
+                <div class="form-group">
+                    <textarea
+                        id="task-description"
+                        placeholder="Task description (optional)"
+                        rows="3"
+                    ></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Task</button>
+            </form>
+        </div>
+
+        <div class="tasks-section">
+            <h2>Tasks</h2>
+            <div id="tasks-container" class="tasks-list">
+                <p class="loading">Loading tasks...</p>
+            </div>
+        </div>
+
+        <div class="testing-section">
+            <h2>Observability Testing</h2>
+            <p class="test-description">Use these buttons to test different observability scenarios:</p>
+            <div class="test-buttons">
+                <button onclick="simulateError()" class="btn btn-danger">Simulate Error</button>
+                <button onclick="simulateSlowRequest()" class="btn btn-warning">Simulate Slow Request (2s)</button>
+                <button onclick="createMultipleTasks()" class="btn btn-info">Create Bulk Tasks (5)</button>
+                <button id="btn-db-smoke" class="btn btn-success">DB Smoke (warm P95)</button>
+            </div>
+        </div>
+
+        <div class="observability-links">
+            <h3>Observability Dashboards</h3>
+            <div class="links-grid">
+                <a id="link-grafana" href="#" target="_blank" class="link-card">
+                    <strong>Grafana</strong>
+                    <span>View Dashboards, Traces & Logs</span>
+                </a>
+                <a id="link-prometheus" href="#" target="_blank" class="link-card">
+                    <strong>Prometheus</strong>
+                    <span>Query Metrics</span>
+                </a>
+                <a id="link-tempo" href="#" target="_blank" class="link-card">
+                    <strong>Tempo</strong>
+                    <span>Trace Backend</span>
+                </a>
+                <a id="link-collector" href="#" target="_blank" class="link-card">
+                    <strong>Collector Metrics</strong>
+                    <span>OTEL Collector Stats</span>
+                </a>
+            </div>
+        </div>
+
+        <div id="toast-container"></div>
+    </div>
+
+    <script type="module" src="otel-browser.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
