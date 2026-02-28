@@ -4,7 +4,7 @@ pipeline {
 
   environment {
     VM_USER    = 'deploy'
-    VM_IP      = '192.168.122.250'
+    VM_IP      = '192.168.122.230'
     DOCKER_CTX = 'vm-lab'
     PROJECT    = 'lab'
     VM_DIR     = '/home/deploy/lab/app'   
