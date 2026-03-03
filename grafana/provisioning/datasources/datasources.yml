@@ -72,3 +72,13 @@ datasources:
           matcherRegex: 'otelTraceID=([0-9a-f]+)'
           name: otelTraceID
           url: '$${__value.raw}'
+
+  # Alertmanager
+  - name: Alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    uid: alertmanager
+    editable: true
+    jsonData:
+      implementation: prometheus

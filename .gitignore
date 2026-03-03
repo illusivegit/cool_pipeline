@@ -31,5 +31,9 @@ Thumbs.db
 # Grafana
 grafana/data/
 
+# Backups and artifacts
+backups/
+artifacts/state/
+
 # IMPORTANT: Private documentation archive (strategic IP protection)
 PRIVATE_DOCS_ARCHIVE/

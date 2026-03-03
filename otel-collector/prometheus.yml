@@ -3,7 +3,18 @@ global:
   evaluation_interval: 15s
   external_labels:
     cluster: 'otel-lab'
-    environment: 'development'
+    environment: 'reference'
+
+# Alertmanager integration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Rule files
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+  - /etc/prometheus/recording-rules.yml
 
 scrape_configs:
   # Scrape Prometheus itself
@@ -17,10 +28,6 @@ scrape_configs:
       - targets: ['otel-collector:8888']
         labels:
           service: 'otel-collector'
-
-  # NOTE: otel-collector-prometheus-exporter job removed
-  # Collector no longer exports Prometheus metrics (only traces/logs).
-  # Flask backend metrics are now the sole source via prometheus_client.
 
   # Scrape Flask backend metrics
   - job_name: 'flask-backend'
@@ -49,3 +56,17 @@ scrape_configs:
       - targets: ['grafana:3000']
         labels:
           service: 'grafana'
+
+  # Scrape Node Exporter (host metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+
+  # Scrape Alertmanager metrics
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          service: 'alertmanager'

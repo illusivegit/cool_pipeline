@@ -2076,15 +2076,191 @@ grafana:
 
 ---
 
-**Document Version:** 1.1
+---
+
+### DD-017: Makefile as Primary User Interface
+
+**CONTEXT:**
+Project had `start-lab.sh` and ad-hoc `docker compose` commands. Needed a discoverable,
+consistent interface similar to the Infrastructure Automation Framework's 27-target Makefile.
+
+**OPTIONS CONSIDERED:**
+
+**Option A: Makefile (Chosen)**
+- Self-documenting (`make help`), tab-completable, zero dependencies
+- Wraps docker compose, scripts, and validation in named targets
+
+**Option B: Keep `start-lab.sh` + README instructions**
+- No additional tooling, but poor discoverability
+
+**CHOSEN:** Option A — Makefile
+
+**RATIONALE:**
+- IAF demonstrated that `make <target>` is the most discoverable interface for infra projects
+- Targets map 1:1 to operations: `up`, `down`, `health`, `state`, `backup`, `restore`
+- `start-lab.sh` preserved as fallback but Makefile is the primary entry point
+- Jenkins pipeline updated to call `make` targets instead of raw `docker compose`
+
+**TRADE-OFFS ACCEPTED:**
+- Requires GNU Make installed (present on all target platforms)
+- Makefile syntax can be unfamiliar to some developers
+
+---
+
+### DD-018: Alertmanager for Proactive Monitoring
+
+**CONTEXT:**
+Old-lab had no alerting — issues were only discovered by manually checking dashboards.
+IAF implemented Alertmanager with email relay across all four deployment pathways.
+
+**OPTIONS CONSIDERED:**
+
+**Option A: Alertmanager container (Chosen)**
+- Native Prometheus integration, lightweight, well-documented
+
+**Option B: Grafana alerting only**
+- Requires Grafana to be running; alerts lost if Grafana restarts
+
+**CHOSEN:** Option A — Alertmanager as dedicated container
+
+**RATIONALE:**
+- Decouples alerting from visualization (Alertmanager survives Grafana restart)
+- Prometheus `alerting:` block natively routes to Alertmanager
+- Alert rules defined in version-controlled YAML files
+- Future: add webhook/Slack/email receivers without touching Prometheus config
+
+**IMPLEMENTATION:**
+- 8 alert rules across 3 groups: application, infrastructure, observability-stack
+- Inhibition rules: critical alerts suppress matching warnings
+- Grafana Alertmanager datasource added for alert visibility
+
+---
+
+### DD-019: Post-Deploy State Contract Pattern
+
+**CONTEXT:**
+IAF's most distinctive pattern: every deployment produces machine-readable
+`/etc/post_install_state.{json,kv}` artifacts proving convergence across all four
+pathways. Old-lab had no equivalent — deployment success was verified manually.
+
+**OPTIONS CONSIDERED:**
+
+**Option A: Script-generated artifacts (Chosen)**
+- `scripts/state-contract.sh` queries all containers and endpoints
+- Outputs `artifacts/state/<TIMESTAMP>/state.{json,kv}`
+
+**Option B: Docker healthchecks only**
+- Limited to per-container health; no cross-service validation
+
+**CHOSEN:** Option A — Script-generated state contract
+
+**RATIONALE:**
+- Artifacts persist across `make nuke` for historical comparison
+- KV format enables `diff` between deployments
+- JSON format enables programmatic analysis
+- Jenkins archives artifacts for CI/CD audit trail
+- Covers container state, endpoint health, and version verification
+
+---
+
+### DD-020: Docker Volume Backup Strategy
+
+**CONTEXT:**
+IAF uses FS-freeze + QCOW2 external snapshots for zero-downtime VM backup.
+Docker Compose doesn't use QCOW2, so a Docker-native backup strategy was needed.
+
+**OPTIONS CONSIDERED:**
+
+**Option A: Volume tarball export (Chosen)**
+- Stop → tar each volume → restart → 7-day retention
+
+**Option B: Docker commit (snapshot containers)**
+- Only captures container filesystem, not named volumes
+
+**Option C: Third-party tools (Velero, restic)**
+- Overkill for lab environment; adds external dependencies
+
+**CHOSEN:** Option A — Volume tarball export with manifest
+
+**RATIONALE:**
+- Simple, portable, no external dependencies
+- Manifest JSON tracks which tarballs correspond to which volumes
+- Retention policy prevents disk exhaustion
+- Restore script accepts timestamp argument for point-in-time recovery
+- Trade-off: brief downtime during backup (acceptable for lab)
+
+---
+
+### DD-021: Container Security Hardening
+
+**CONTEXT:**
+IAF applies systemd hardening (NoNewPrivileges, ProtectSystem=strict, PrivateTmp,
+cap restrictions) to all services. Old-lab containers ran with default Docker security.
+
+**OPTIONS CONSIDERED:**
+
+**Option A: Docker Compose security directives (Chosen)**
+- `read_only`, `no-new-privileges`, `cap_drop: ALL`, resource limits
+
+**Option B: AppArmor/SELinux profiles**
+- More granular but complex to maintain in development
+
+**CHOSEN:** Option A — Docker Compose security directives
+
+**RATIONALE:**
+- Maps directly to IAF's systemd hardening patterns:
+  - `read_only: true` ↔ `ProtectSystem=strict`
+  - `no-new-privileges` ↔ `NoNewPrivileges=true`
+  - `tmpfs: /tmp` ↔ `PrivateTmp=yes`
+  - `cap_drop: ALL` ↔ capability bounding set
+- Network isolation via named networks (frontend-net, backend-net, observability)
+- Resource limits prevent single container from exhausting host
+
+**IMPLEMENTATION:**
+- Three isolated networks: frontend-net, backend-net, observability
+- Backend accessible from both frontend (API proxy) and observability (metrics scraping)
+- Grafana accessible from frontend-net (user-facing) and observability (datasources)
+- All containers drop all capabilities; only Nginx adds NET_BIND_SERVICE
+- Resource limits: 0.5-1.0 CPU, 128M-512M memory per service
+
+---
+
+### DD-022: Bash Library Layer for Script Reuse
+
+**CONTEXT:**
+IAF has a mature `lib/` directory with source-guarded libraries (`log.sh`, `ssh.sh`,
+`templates.sh`, `idempotent.sh`). Old-lab scripts had inline logging and no code reuse.
+
+**OPTIONS CONSIDERED:**
+
+**Option A: Bash libraries with source guards (Chosen)**
+- `lib/log.sh` for structured logging, `lib/checks.sh` for reusable validations
+
+**Option B: Inline helper functions per script**
+- Duplicated code, inconsistent formatting
+
+**CHOSEN:** Option A — Bash library layer
+
+**RATIONALE:**
+- Source guards (`[[ -n "${_LIB_LOG_LOADED:-}" ]] && return`) prevent double-sourcing
+- Consistent log format across all scripts (timestamped, coloured, levelled)
+- Shared check functions (`check_endpoint`, `check_container_running`, `check_version`)
+- Pass/fail/warn counters with `print_summary` for structured exit codes
+- All scripts source from `lib/` and use `set -euo pipefail`
+
+---
+
+**Document Version:** 1.2
 **Author:** Wally
-**Last Updated:** 2025-10-22
+**Last Updated:** 2026-03-02
 **Status:** Living Document (will be updated as new decisions are made)
 
-**Recent Additions (v1.1 - October 22, 2025):**
-- DD-013: CORS Redundancy Strategy (Defense-in-Depth rationale)
-- DD-014: OpenTelemetry Instrumentation Strategy (Auto + Manual Hybrid)
-- DD-015: Smoke Test Endpoint Design (Performance baseline + observability validation)
-- DD-016: Docker Compose Dependency Chain (Healthcheck-based orchestration)
+**Recent Additions (v1.2 - March 2, 2026):**
+- DD-017: Makefile as Primary User Interface
+- DD-018: Alertmanager for Proactive Monitoring
+- DD-019: Post-Deploy State Contract Pattern
+- DD-020: Docker Volume Backup Strategy
+- DD-021: Container Security Hardening
+- DD-022: Bash Library Layer for Script Reuse
 
 **License:** MIT (use for your own learning)

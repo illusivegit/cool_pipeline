@@ -1,0 +1,50 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: nginx
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          environment: reference
+          __path__: /var/log/nginx/*.log
+
+    pipeline_stages:
+      # Detect access log vs error log by filename
+      - match:
+          selector: '{job="nginx"}'
+          stages:
+            - regex:
+                source: filename
+                expression: '/var/log/nginx/(?P<log_type>[a-z]+)\\.log'
+            - labels:
+                log_type:
+
+      # Parse Nginx combined access log format
+      - match:
+          selector: '{log_type="access"}'
+          stages:
+            - regex:
+                expression: '^(?P<remote_addr>[\d.]+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+            - labels:
+                method:
+                status:
+                path:
+
+      # Parse Nginx error log
+      - match:
+          selector: '{log_type="error"}'
+          stages:
+            - regex:
+                expression: '(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<message>.*)'
+            - labels:
+                level:

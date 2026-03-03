@@ -1,0 +1,90 @@
+groups:
+  - name: application
+    rules:
+      - alert: BackendDown
+        expr: up{job="flask-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Flask backend is down"
+          description: "The flask-backend target has been unreachable for over 1 minute."
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[2m]))
+            /
+            sum(rate(http_requests_total{endpoint!="metrics"}[2m]))
+          ) > 0.05
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate"
+          description: "More than 5% of non-metrics requests are returning 5xx status codes."
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{endpoint!="metrics"}[2m])) by (le)
+          ) > 0.5
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 request latency"
+          description: "95th percentile request latency exceeds 500ms."
+
+  - name: infrastructure
+    rules:
+      - alert: HostHighCpuUsage
+        expr: |
+          100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host CPU usage above 85%"
+          description: "CPU usage on {{ $labels.instance }} has been above 85% for 5 minutes."
+
+      - alert: HostHighMemoryUsage
+        expr: |
+          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host memory usage above 85%"
+          description: "Memory usage on {{ $labels.instance }} has been above 85% for 5 minutes."
+
+      - alert: HostDiskSpaceWarning
+        expr: |
+          (1 - node_filesystem_avail_bytes{mountpoint=~"/|/var/lib",fstype=~"ext4|xfs|btrfs"}
+             / node_filesystem_size_bytes{mountpoint=~"/|/var/lib",fstype=~"ext4|xfs|btrfs"}) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host disk usage above 80%"
+          description: "Disk usage on {{ $labels.instance }} root partition exceeds 80%."
+
+  - name: observability-stack
+    rules:
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} in job {{ $labels.job }} has been down for 2 minutes."
+
+      - alert: OtelCollectorDroppedSpans
+        expr: rate(otelcol_exporter_send_failed_spans_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OTel Collector dropping spans"
+          description: "The OTel Collector is failing to export spans to Tempo."

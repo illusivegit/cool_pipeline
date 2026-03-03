@@ -7,9 +7,9 @@ pipeline {
     VM_IP      = '192.168.122.230'
     DOCKER_CTX = 'vm-lab'
     PROJECT    = 'lab'
-    VM_DIR     = '/home/deploy/lab/app'   
+    VM_DIR     = '/home/deploy/lab/app'
   }
-  
+
   stages {
     stage('Sanity on agent') {
       steps {
@@ -47,20 +47,16 @@ pipeline {
         }
       }
     }
-    
-    stage('Debug: verify compose paths') {
+
+    stage('Lint') {
       steps {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
             set -eu
-            echo "== Local workspace PWD =="
-            pwd
-            echo "== Local workspace =="
-            ls -la
-            echo
-            echo "== Remote VM dir =="
-            ssh ${VM_USER}@${VM_IP} "ls -la ${VM_DIR} || true; \
-              find ${VM_DIR} -maxdepth 2 -type f \\( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' \\) -print"
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              find lib/ scripts/ -name '*.sh' -exec shellcheck -x {} + 2>/dev/null || echo 'shellcheck not installed — skipping'
+            "
           '''
         }
       }
@@ -74,29 +70,79 @@ pipeline {
             export DOCKER_BUILDKIT=1
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
-              PROJECT=${PROJECT} LAB_HOST=${VM_IP} ./start-lab.sh
-              # Explicitly override the default PROJECT=lab and LAB_HOST=localhost variables using Jenkins-provided values
+              make up
             "
           '''
         }
       }
     }
 
-    stage('Smoke tests') {
+    stage('Health checks') {
       steps {
-        sh '''
-          set -eu
-          curl -sf http://${VM_IP}:8080 >/dev/null 
-          curl -sf http://${VM_IP}:3000/login >/dev/null 
-          curl -sf http://${VM_IP}:9090/-/ready >/dev/null 
-        '''
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            echo "Waiting for services to stabilize..."
+            sleep 15
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              LAB_HOST=${VM_IP} make health
+            "
+          '''
+        }
+      }
+    }
+
+    stage('State contract') {
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              LAB_HOST=${VM_IP} make state
+            "
+          '''
+        }
+      }
+    }
+
+    stage('Version validation') {
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              make validate-versions
+            "
+          '''
+        }
       }
     }
   }
 
   post {
     failure {
-      echo "Hint: tail remote logs → docker --context ${DOCKER_CTX} compose --project-directory ${VM_DIR} -p ${PROJECT} logs --no-color --tail=200"
+      sshagent(credentials: ['vm-ssh']) {
+        sh '''
+          ssh ${VM_USER}@${VM_IP} "
+            cd ${VM_DIR} && \
+            docker compose -p ${PROJECT} logs --no-color --tail=200
+          " > failure-logs.txt 2>&1 || true
+        '''
+      }
+      archiveArtifacts artifacts: 'failure-logs.txt', allowEmptyArchive: true
+      echo "Hint: check failure-logs.txt artifact for container logs"
+    }
+    success {
+      sshagent(credentials: ['vm-ssh']) {
+        sh '''
+          ssh ${VM_USER}@${VM_IP} "
+            cat ${VM_DIR}/artifacts/state/*/state.kv 2>/dev/null | tail -30 || echo 'No state artifact found'
+          "
+        '''
+      }
     }
   }
 }

@@ -20,8 +20,10 @@ function setupDynamicLinks() {
     const links = {
         'link-grafana': `http://${host}:3000`,
         'link-prometheus': `http://${host}:9090`,
-        'link-tempo': `http://${host}:3200`,
-        'link-collector': `http://${host}:8888/metrics`
+        'link-tempo': `http://${host}:3000/explore?orgId=1&left=${encodeURIComponent(JSON.stringify({datasource:"tempo",queries:[{refId:"A",queryType:"traceqlSearch"}],range:{from:"now-1h",to:"now"}}))}`,
+        'link-collector': `http://${host}:8888/metrics`,
+        'link-alertmanager': `http://${host}:9093`,
+        'link-node-exporter': `http://${host}:9100/metrics`
     };
 
     for (const [id, href] of Object.entries(links)) {

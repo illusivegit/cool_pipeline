@@ -78,7 +78,8 @@ IFS=$'\n\t'
 readonly DEPLOY_USER="deploy"
 readonly DEPLOY_HOME="/home/${DEPLOY_USER}"
 readonly APP_DIR="${DEPLOY_HOME}/lab/app"       # Matches Jenkinsfile VM_DIR
-readonly SCRIPT_NAME="$(basename "$0")"
+SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_NAME
 
 # ---------------------------------------------------------------------------
 # Logging

@@ -144,9 +144,8 @@ class Task(db.Model):
             'created_at': self.created_at.isoformat()
         }
 
-# SQLAlchemy event listener functions for Prometheus DB query duration tracking
-# NOTE: Defined as plain functions (not decorators) to avoid "Working outside of application context" error
-# These will be attached to db.engine inside the app context block below
+# SQLAlchemy event listeners for Prometheus DB query duration tracking
+# Attached to db.engine inside the app context block below
 def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
     """Record query start time before execution"""
     context._query_start_time = perf_counter()
@@ -176,13 +175,12 @@ def _after_cursor_execute(conn, cursor, statement, parameters, context, executem
 # Create tables and instrument SQLAlchemy within app context
 with app.app_context():
     os.makedirs('/app/data', exist_ok=True)
-    # Instrument SQLAlchemy inside app context where db.engine is accessible
+    # Instrument SQLAlchemy (requires app context for db.engine access)
     SQLAlchemyInstrumentor().instrument(engine=db.engine)
     db.create_all()
     logger.info("Database initialized")
 
     # Attach SQLAlchemy event listeners for Prometheus DB metrics
-    # Must be done inside app context to avoid "Working outside of application context" error
     event.listen(db.engine, "before_cursor_execute", _before_cursor_execute)
     event.listen(db.engine, "after_cursor_execute", _after_cursor_execute)
     logger.info("SQLAlchemy event listeners registered for DB query duration tracking")

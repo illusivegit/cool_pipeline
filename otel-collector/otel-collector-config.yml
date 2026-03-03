@@ -27,7 +27,7 @@ processors:
         value: service.name, service.instance.id, deployment.environment
         action: insert
 
-  # Memory limiter to prevent OOM
+  # Memory limiter (512 MiB cap)
   memory_limiter:
     check_interval: 1s
     limit_mib: 512
@@ -74,10 +74,7 @@ exporters:
     sampling_initial: 5
     sampling_thereafter: 200
 
-  # NOTE: Prometheus exporters removed - metrics now come ONLY from
-  # prometheus_client library exposed at Flask /metrics endpoint.
-  # This eliminates metric duplication and simplifies the pipeline.
-  # OTel traces and logs still flow through collector to Tempo/Loki.
+  # No Prometheus exporter — metrics are scraped directly from Flask /metrics
 
 extensions:
   health_check:
@@ -95,9 +92,7 @@ service:
       processors: [memory_limiter, resource, attributes, batch]
       exporters: [otlp/tempo, logging]
 
-    # Metrics pipeline removed - Flask app now uses prometheus_client
-    # to expose metrics directly at /metrics endpoint for Prometheus scraping.
-    # This eliminates duplication with OTel SDK metrics.
+    # No metrics pipeline — Prometheus scrapes Flask /metrics directly
 
     logs:
       receivers: [otlp]
