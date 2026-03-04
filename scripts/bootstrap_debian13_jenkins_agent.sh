@@ -9,29 +9,30 @@
 # Architecture:
 #   The Jenkins agent runs as a Docker container on the CI host (built from
 #   jenkins/jenkins-inbound-agent-with-jq-docker-rsync). It SSHs into THIS VM
-#   as the 'deploy' user, rsyncs the repo, and runs start-lab.sh to bring up
-#   the application stack via docker compose.
+#   as the 'jenkins' user, rsyncs the repo, and runs Makefile targets to bring
+#   up the application stack via docker compose.
 #
 #   ┌──────────────────────┐  SSH + rsync   ┌──────────────────────────┐
 #   │  CI Host             │ ────────────► │  This VM (deploy target) │
 #   │  Jenkins controller  │               │                          │
-#   │  Jenkins agent       │  docker ctx   │  deploy user             │
+#   │  Jenkins agent       │  docker ctx   │  jenkins user             │
 #   │  (Docker container)  │ ────────────► │  docker compose up       │
 #   └──────────────────────┘                └──────────────────────────┘
 #
 # What it installs (only what the pipeline needs on this VM):
+#   - make               (Makefile targets: make up, make health, make state)
 #   - rsync              (receives files from agent: rsync -az --delete)
-#   - curl               (start-lab.sh health checks)
+#   - curl               (health-check scripts)
 #   - ca-certificates    (TLS certificate chain verification)
 #   - unattended-upgrades (automatic security patches)
 #   - apt-listchanges    (companion for unattended-upgrades)
 #
 # What it configures:
-#   - 'deploy' user: no password, locked, SSH key-only, no sudo
-#   - Docker group membership for deploy (security note below)
-#   - SSH authorized_keys scaffold for deploy
+#   - 'jenkins' user: no password, locked, SSH key-only, no sudo
+#   - Docker group membership for jenkins (security note below)
+#   - SSH authorized_keys scaffold for jenkins
 #   - Docker daemon: unix socket only (no TCP), log rotation, live-restore
-#   - SSH hardening: no root login, key-only auth for deploy user
+#   - SSH hardening: no root login, key-only auth for jenkins user
 #   - Automatic security updates via unattended-upgrades
 #
 # What it does NOT install (runs on the CI host agent container, not here):
@@ -53,17 +54,17 @@
 #   No destructive operations on re-run.
 #
 # Rollback:
-#   - Per-change: userdel -r deploy; apt-get purge <pkg>;
+#   - Per-change: userdel -r jenkins; apt-get purge <pkg>;
 #     rm /etc/ssh/sshd_config.d/50-deploy-target-hardening.conf
 #   - Full rollback: virsh snapshot-revert debian13 docker_install --running
 #
 # Security note — Docker group:
 #   Adding a user to the 'docker' group is effectively equivalent to root
 #   access because containers can mount the host filesystem. Required here
-#   because the deploy user must run 'docker compose up -d --build'.
+#   because the jenkins user must run 'docker compose up -d --build'.
 #   Mitigations applied:
-#     1. Deploy user has no password (SSH key only)
-#     2. Deploy user has NO sudo access
+#     1. Jenkins user has no password (SSH key only)
+#     2. Jenkins user has NO sudo access
 #     3. Docker daemon listens only on the unix socket (no TCP)
 #     4. VM is single-purpose (deployment target)
 #   See docs/jenkins-agent-vm.md for full discussion.
@@ -75,7 +76,7 @@ IFS=$'\n\t'
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-readonly DEPLOY_USER="deploy"
+readonly DEPLOY_USER="jenkins"
 readonly DEPLOY_HOME="/home/${DEPLOY_USER}"
 readonly APP_DIR="${DEPLOY_HOME}/lab/app"       # Matches Jenkinsfile VM_DIR
 SCRIPT_NAME="$(basename "$0")"
@@ -145,10 +146,12 @@ install_packages() {
 
     # Only what runs ON THIS VM during deployment:
     #
-    #   rsync            Receives files from the Jenkins agent container
-    #                    (Jenkinsfile: rsync -az --delete ./ deploy@VM:VM_DIR/)
+    #   make             Makefile targets (make up, make health, make state, ...)
     #
-    #   curl             start-lab.sh health checks (curl -s http://localhost:...)
+    #   rsync            Receives files from the Jenkins agent container
+    #                    (Jenkinsfile: rsync -az --delete ./ jenkins@VM:VM_DIR/)
+    #
+    #   curl             Health-check scripts (curl -s http://localhost:...)
     #
     #   ca-certificates  TLS certificate chain (Docker Hub pulls, apt https)
     #
@@ -159,6 +162,7 @@ install_packages() {
     #   git, jq, java, openssh-client, docker-cli, docker-compose-plugin
 
     local -a required_pkgs=(
+        make
         rsync
         curl
         ca-certificates
@@ -189,14 +193,14 @@ install_packages() {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Create dedicated deploy user
+# 3. Create dedicated jenkins user
 # ---------------------------------------------------------------------------
 create_deploy_user() {
-    log_step "Creating deploy user: ${DEPLOY_USER}"
+    log_step "Creating jenkins user: ${DEPLOY_USER}"
 
     # Jenkinsfile references:
-    #   VM_USER = 'deploy'
-    #   VM_DIR  = '/home/deploy/lab/app'
+    #   VM_USER = 'jenkins'
+    #   VM_DIR  = '/home/jenkins/lab/app'
 
     if id "${DEPLOY_USER}" &>/dev/null; then
         log_info "User ${DEPLOY_USER} already exists."
@@ -205,7 +209,7 @@ create_deploy_user() {
             --create-home \
             --home-dir "${DEPLOY_HOME}" \
             --shell /bin/bash \
-            --comment "CI/CD deploy target — least-privilege, no sudo" \
+            --comment "CI/CD jenkins target — least-privilege, no sudo" \
             "${DEPLOY_USER}"
         log_info "Created user: ${DEPLOY_USER}"
     fi
@@ -229,7 +233,7 @@ create_deploy_user() {
     log_info "SSH directory permissions: .ssh=700, authorized_keys=600"
 
     # Create the app deployment directory tree
-    # Matches Jenkinsfile: VM_DIR = '/home/deploy/lab/app'
+    # Matches Jenkinsfile: VM_DIR = '/home/jenkins/lab/app'
     install -d -m 0755 -o "${DEPLOY_USER}" -g "${DEPLOY_USER}" "${APP_DIR}"
     log_info "App directory: ${APP_DIR}  (Jenkinsfile VM_DIR)"
 }
@@ -243,7 +247,7 @@ configure_docker() {
     # ┌─────────────────────────────────────────────────────────────────────┐
     # │  SECURITY: docker group ≈ root                                     │
     # │                                                                     │
-    # │  The deploy user must run:                                          │
+    # │  The jenkins user must run:                                         │
     # │    docker compose -p lab down -v                                    │
     # │    docker compose -p lab up -d --build                              │
     # │    docker compose -p lab ps                                         │
@@ -251,10 +255,10 @@ configure_docker() {
     # │  These all require docker socket access.                            │
     # │                                                                     │
     # │  Additionally, the Jenkins agent creates a Docker context that      │
-    # │  connects to this VM via SSH as the deploy user:                    │
-    # │    docker context create vm-lab --docker "host=ssh://deploy@VM"     │
+    # │  connects to this VM via SSH as the jenkins user:                   │
+    # │    docker context create vm-lab --docker "host=ssh://jenkins@VM"    │
     # │  When the agent runs 'docker --context vm-lab info', the SSH        │
-    # │  session lands as the deploy user, who must access the socket.      │
+    # │  session lands as the jenkins user, who must access the socket.     │
     # │                                                                     │
     # │  Alternatives considered:                                           │
     # │   - Rootless Docker: breaks the remote Docker context SSH pattern   │
@@ -262,8 +266,8 @@ configure_docker() {
     # │   - sudo wrapper: adds friction, breaks 'docker context' commands   │
     # │                                                                     │
     # │  Mitigations applied:                                               │
-    # │   1. Deploy user has no password (SSH key only)                     │
-    # │   2. Deploy user has NO sudo access whatsoever                      │
+    # │   1. Jenkins user has no password (SSH key only)                     │
+    # │   2. Jenkins user has NO sudo access whatsoever                     │
     # │   3. Docker daemon: unix socket only, no TCP exposure               │
     # │   4. This VM is single-purpose (deployment target)                  │
     # └─────────────────────────────────────────────────────────────────────┘
@@ -352,8 +356,8 @@ harden_ssh() {
 # Disable root SSH login (use 'debian' user + sudo instead)
 PermitRootLogin no
 
-# Restrict the deploy user to key-based auth only
-Match User deploy
+# Restrict the jenkins user to key-based auth only
+Match User jenkins
     PasswordAuthentication no
     AuthenticationMethods publickey
     AllowAgentForwarding yes
@@ -402,11 +406,12 @@ verify_setup() {
     log_info "Installed tool versions:"
     printf '  %-20s %s\n' "docker:"         "$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 'ERROR')"
     printf '  %-20s %s\n' "docker compose:" "$(docker compose version --short 2>/dev/null || echo 'ERROR')"
+    printf '  %-20s %s\n' "make:"           "$(make --version 2>/dev/null | head -1 | awk '{print $NF}')"
     printf '  %-20s %s\n' "rsync:"          "$(rsync --version 2>/dev/null | head -1 | awk '/version/{print $3}')"
     printf '  %-20s %s\n' "curl:"           "$(curl --version 2>/dev/null | head -1 | awk '{print $2}' || echo 'ERROR')"
 
     echo ""
-    log_info "Deploy user verification:"
+    log_info "Jenkins user verification:"
     if id "${DEPLOY_USER}" &>/dev/null; then
         printf '  %-20s %s\n' "user exists:"     "yes"
         printf '  %-20s %s\n' "uid/gid:"         "$(id "${DEPLOY_USER}" 2>/dev/null)"
@@ -431,7 +436,7 @@ verify_setup() {
         log_warn "Docker daemon not responding."
     fi
 
-    # Test docker access as deploy user
+    # Test docker access as jenkins user
     echo ""
     log_info "Docker access test as ${DEPLOY_USER}:"
     if su -s /bin/bash -c 'docker ps --format "table {{.Names}}"' "${DEPLOY_USER}" &>/dev/null; then
@@ -464,7 +469,7 @@ verify_setup() {
     echo ""
     echo "  2. Update the Jenkinsfile VM_IP if this VM's IP differs:"
     echo "     Current VM IP: $(hostname -I 2>/dev/null | awk '{print $1}')"
-    echo "     Jenkinsfile:   VM_IP = '192.168.122.250'"
+    echo "     Jenkinsfile:   VM_IP = '192.168.122.230'"
     echo ""
     echo "  3. Verify the agent container can reach this VM:"
     echo "     ssh -i <key> ${DEPLOY_USER}@$(hostname -I 2>/dev/null | awk '{print $1}') 'docker info'"

@@ -81,7 +81,7 @@ Host Filesystem
           ├─ Base OS (Debian 13)
           ├─ Docker images (pulled containers)
           ├─ Docker volumes (persistent data)
-          └─ Application files (/home/deploy/lab/app)
+          └─ Application files (/home/jenkins/lab/app)
 ```
 
 **qcow2 Advantages:**
@@ -107,7 +107,7 @@ The Docker Compose stack creates named volumes that persist in `/var/lib/docker/
 - SSH server enabled (for Jenkins deployment)
 - Docker Engine installed
 - Docker Compose V2 installed
-- User account: `deploy` (passwordless SSH key authentication)
+- User account: `jenkins` (passwordless SSH key authentication)
 - Firewall: Permissive for lab environment (ports 80, 3000, 5000, 9090 exposed)
 
 ### VM XML Definition (Conceptual)
@@ -195,7 +195,7 @@ The VM is assigned a predictable IP address via one of:
 2. **Static Configuration:** Manual IP configuration in VM's `/etc/network/interfaces`
 
 **Why Static IP Matters:**
-- Jenkins pipeline targets `deploy@192.168.122.250` for SSH/rsync
+- Jenkins pipeline targets `jenkins@192.168.122.250` for SSH/rsync
 - Browser access URLs are hardcoded (e.g., `http://192.168.122.250:3000`)
 - Simplifies debugging (no need to lookup dynamic IPs with `virsh domifaddr`)
 
@@ -262,24 +262,24 @@ The Jenkins pipeline deploys to the VM via SSH:
 ```
 Jenkins Controller (Host or Container)
   │
-  └─ SSH Connection: deploy@192.168.122.250
+  └─ SSH Connection: jenkins@192.168.122.250
       │
       ├─ Authentication: SSH key-based (no password)
       │   • Private key stored in Jenkins credentials
-      │   • Public key in /home/deploy/.ssh/authorized_keys
+      │   • Public key in /home/jenkins/.ssh/authorized_keys
       │
       ├─ Commands Executed:
       │   • rsync (file synchronization)
       │   • docker compose up (start services)
       │   • healthcheck validation
       │
-      └─ Deployment Directory: /home/deploy/lab/app
+      └─ Deployment Directory: /home/jenkins/lab/app
 ```
 
 **Security Configuration:**
 - SSH password authentication disabled
 - Key-based authentication only
-- Dedicated `deploy` user (non-root)
+- Dedicated `jenkins` user (non-root)
 - Sudo privileges for Docker commands (if needed)
 
 ### HTTP Access (Browser)
@@ -445,7 +445,7 @@ The VM serves as the **deployment target** for the Jenkins pipeline:
 Jenkins Pipeline (cicd-pipeline.md)
   │
   ├─ Stage: Sync repo to VM
-  │   └─ rsync → /home/deploy/lab/app
+  │   └─ rsync → /home/jenkins/lab/app
   │
   ├─ Stage: Compose up
   │   └─ SSH → docker compose up -d
@@ -477,7 +477,7 @@ See: [Network Architecture](network.md) for Docker networking and Nginx proxy de
 The VM hosts the **Docker Compose stack**:
 
 ```
-VM Filesystem: /home/deploy/lab/app/
+VM Filesystem: /home/jenkins/lab/app/
   ├─ docker-compose.yml (service definitions)
   ├─ backend/ (Flask application)
   ├─ frontend/ (React + Nginx)
@@ -555,20 +555,20 @@ virsh domifaddr observability-vm
 # Expected: 192.168.122.250
 
 # 3. Test SSH connectivity
-ssh deploy@192.168.122.250 'echo "SSH works"'
+ssh jenkins@192.168.122.250 'echo "SSH works"'
 
 # 4. Verify Docker is installed
-ssh deploy@192.168.122.250 'docker --version'
+ssh jenkins@192.168.122.250 'docker --version'
 
 # 5. Verify Docker Compose is installed
-ssh deploy@192.168.122.250 'docker compose version'
+ssh jenkins@192.168.122.250 'docker compose version'
 
 # 6. Check available disk space
-ssh deploy@192.168.122.250 'df -h | grep -E "Filesystem|/dev/vda"'
+ssh jenkins@192.168.122.250 'df -h | grep -E "Filesystem|/dev/vda"'
 # Should have >10GB free
 
 # 7. Test internet connectivity from VM
-ssh deploy@192.168.122.250 'ping -c 3 1.1.1.1'
+ssh jenkins@192.168.122.250 'ping -c 3 1.1.1.1'
 ```
 
 **✅ Success Criteria:**

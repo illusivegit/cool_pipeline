@@ -131,7 +131,7 @@ This networking knowledge became critical later when I debugged Docker container
 Before I even touched Jenkins, I needed to secure the foundation: **SSH access to my VMs**.
 
 **The Problem:**
-Fresh Debian VM with a `deploy` user account, no password set. Jenkins needs to SSH in to deploy containers, but I don't want password-based authentication—that's asking for brute-force attacks.
+Fresh Debian VM with a `jenkins` user account, no password set. Jenkins needs to SSH in to deploy containers, but I don't want password-based authentication—that's asking for brute-force attacks.
 
 **The Goal:**
 Key-only SSH authentication (industry best practice).
@@ -147,30 +147,30 @@ Key-only SSH authentication (industry best practice).
 
 2. **The Catch-22:**
    ```bash
-   ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub deploy@192.168.122.250
+   ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub jenkins@192.168.122.250
    ```
 
-   **Failed:** `ssh-copy-id` needs to *log in* to copy the key, but `deploy` has no password!
+   **Failed:** `ssh-copy-id` needs to *log in* to copy the key, but `jenkins` has no password!
 
 3. **Temporary Password (Walking Through Security Hardening):**
    ```bash
    # SSH as existing user
    ssh wally@192.168.122.250
 
-   # Set temporary password for deploy
-   sudo passwd deploy
+   # Set temporary password for jenkins
+   sudo passwd jenkins
    # (chose something short, will remove it in 2 minutes)
    ```
 
 4. **Copy Key:**
    ```bash
-   ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub deploy@192.168.122.250
+   ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub jenkins@192.168.122.250
    # Asks for password once, installs key to ~/.ssh/authorized_keys
    ```
 
 5. **Test Key-Based Login:**
    ```bash
-   ssh -i ~/.ssh/id_ed25519_jenkins deploy@192.168.122.250 hostname
+   ssh -i ~/.ssh/id_ed25519_jenkins jenkins@192.168.122.250 hostname
    # Returns: debian-VM
    # No password prompt ✅
    ```
@@ -178,7 +178,7 @@ Key-only SSH authentication (industry best practice).
 6. **Harden SSH (Remove Password Authentication):**
    ```bash
    # Lock the password (can't be used even if someone tries)
-   sudo passwd -l deploy
+   sudo passwd -l jenkins
 
    # Edit SSH daemon config
    sudo vi /etc/ssh/sshd_config
@@ -193,7 +193,7 @@ Key-only SSH authentication (industry best practice).
 
 7. **Final Test:**
    ```bash
-   ssh deploy@192.168.122.250 hostname
+   ssh jenkins@192.168.122.250 hostname
    # Works with key, fails with password ✅
    ```
 
@@ -272,7 +272,7 @@ That `./frontend/default.conf` must exist on the **target VM's filesystem**, not
 **Failed Attempt #1: Docker Context**
 
 ```groovy
-docker context create vm-lab --docker "host=ssh://deploy@192.168.122.250"
+docker context create vm-lab --docker "host=ssh://jenkins@192.168.122.250"
 docker --context vm-lab compose up -d
 ```
 
@@ -285,15 +285,15 @@ docker --context vm-lab compose up -d
 ```groovy
 stage('Sync repo to VM') {
   sshagent(credentials: ['vm-ssh']) {
-    sh 'rsync -az --delete ./ deploy@192.168.122.250:/home/deploy/lab/app/'
+    sh 'rsync -az --delete ./ jenkins@192.168.122.250:/home/jenkins/lab/app/'
   }
 }
 
 stage('Deploy to VM') {
   sshagent(credentials: ['vm-ssh']) {
     sh '''
-      ssh deploy@192.168.122.250 "
-        cd /home/deploy/lab/app &&
+      ssh jenkins@192.168.122.250 "
+        cd /home/jenkins/lab/app &&
         docker compose -p lab up -d --build
       "
     '''

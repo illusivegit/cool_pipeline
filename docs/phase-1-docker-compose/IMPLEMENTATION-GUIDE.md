@@ -403,7 +403,7 @@ request_duration.record(
 
 This lab can be integrated into a Jenkins DevSecOps pipeline for automated testing and deployment.
 
-**Note:** The actual Jenkinsfile in this repository uses a different deployment strategy (SSH + rsync to remote VM at `/home/deploy/lab/app`). For detailed CI/CD verification procedures, see [VERIFICATION-GUIDE.md](VERIFICATION-GUIDE.md).
+**Note:** The actual Jenkinsfile in this repository uses a different deployment strategy (SSH + rsync to remote VM at `/home/jenkins/lab/app`). For detailed CI/CD verification procedures, see [VERIFICATION-GUIDE.md](VERIFICATION-GUIDE.md).
 
 For the actual production Jenkinsfile, see: [Jenkinsfile](../../Jenkinsfile)
 

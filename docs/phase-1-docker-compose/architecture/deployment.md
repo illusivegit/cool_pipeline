@@ -73,9 +73,9 @@ flowchart TD
 
         Stage1[Stage 1: Sanity Check<br/>• Verify SSH<br/>• Verify Docker<br/>• Verify Docker Compose]
 
-        Stage2[Stage 2: Docker Context<br/>• Test SSH connectivity<br/>• Create vm-lab context<br/>ssh://deploy@192.168.122.250]
+        Stage2[Stage 2: Docker Context<br/>• Test SSH connectivity<br/>• Create vm-lab context<br/>ssh://jenkins@192.168.122.250]
 
-        Stage3[Stage 3: Sync Repository<br/>• mkdir /home/deploy/lab/app<br/>• rsync -az --delete ./ to VM]
+        Stage3[Stage 3: Sync Repository<br/>• mkdir /home/jenkins/lab/app<br/>• rsync -az --delete ./ to VM]
 
         Stage4[Stage 4: Verify Paths<br/>• List local workspace<br/>• List remote VM files]
 
@@ -152,11 +152,11 @@ docker compose version     # Verify Docker Compose v2 installed
 **Commands Executed:**
 ```bash
 # Test SSH connectivity
-ssh -o StrictHostKeyChecking=no deploy@192.168.122.250 'echo ok'
+ssh -o StrictHostKeyChecking=no jenkins@192.168.122.250 'echo ok'
 
 # Create context if doesn't exist
 docker context ls | grep -q "^vm-lab " || \
-  docker context create vm-lab --docker "host=ssh://deploy@192.168.122.250"
+  docker context create vm-lab --docker "host=ssh://jenkins@192.168.122.250"
 
 # Verify context works
 docker --context vm-lab info
@@ -184,10 +184,10 @@ docker --context vm-lab info
 **Commands Executed:**
 ```bash
 # Create deployment directory if doesn't exist
-ssh deploy@192.168.122.250 "mkdir -p /home/deploy/lab/app"
+ssh jenkins@192.168.122.250 "mkdir -p /home/jenkins/lab/app"
 
 # Synchronize entire repository
-rsync -az --delete ./ deploy@192.168.122.250:/home/deploy/lab/app/
+rsync -az --delete ./ jenkins@192.168.122.250:/home/jenkins/lab/app/
 ```
 
 **rsync Flags Explained:**
@@ -217,8 +217,8 @@ pwd
 ls -la
 
 # List remote VM directory and find docker-compose files
-ssh deploy@192.168.122.250 "ls -la /home/deploy/lab/app || true; \
-  find /home/deploy/lab/app -maxdepth 2 -type f \
+ssh jenkins@192.168.122.250 "ls -la /home/jenkins/lab/app || true; \
+  find /home/jenkins/lab/app -maxdepth 2 -type f \
     \( -name 'docker-compose.yml' -o -name 'docker-compose.yaml' \) -print"
 ```
 
@@ -239,8 +239,8 @@ ssh deploy@192.168.122.250 "ls -la /home/deploy/lab/app || true; \
 ```bash
 export DOCKER_BUILDKIT=1
 
-ssh deploy@192.168.122.250 "
-  cd /home/deploy/lab/app && \
+ssh jenkins@192.168.122.250 "
+  cd /home/jenkins/lab/app && \
   PROJECT=lab LAB_HOST=192.168.122.250 ./start-lab.sh
 "
 ```
@@ -302,7 +302,7 @@ The Jenkins pipeline uses **key-based authentication** with ED25519 keys:
 
 **Security Hardening Applied:**
 1. **Password authentication disabled:** Only SSH keys accepted
-2. **Dedicated deploy user:** Non-root user with minimal permissions
+2. **Dedicated jenkins user:** Non-root user with minimal permissions
 3. **ED25519 keys:** Modern, fast, 256-bit cryptographic keys
 4. **SSH agent forwarding:** Credentials never stored on Jenkins agent
 5. **StrictHostKeyChecking:** Prevents MITM attacks
@@ -313,10 +313,10 @@ The Jenkins pipeline uses **key-based authentication** with ED25519 keys:
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_jenkins
 
 # Install public key on VM
-ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub deploy@192.168.122.250
+ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub jenkins@192.168.122.250
 
-# Lock deploy user password (key-only auth)
-sudo passwd -l deploy
+# Lock jenkins user password (key-only auth)
+sudo passwd -l jenkins
 
 # Disable password auth in /etc/ssh/sshd_config
 PasswordAuthentication no
@@ -336,11 +336,11 @@ Defined in Jenkinsfile `environment` block:
 
 | Variable | Value | Purpose | Override Allowed |
 |----------|-------|---------|------------------|
-| `VM_USER` | `deploy` | SSH user on target VM | No |
+| `VM_USER` | `jenkins` | SSH user on target VM | No |
 | `VM_IP` | `192.168.122.250` | Target VM IP address | Yes (for multi-VM) |
 | `DOCKER_CTX` | `vm-lab` | Docker context name | No |
 | `PROJECT` | `lab` | Docker Compose project name | No |
-| `VM_DIR` | `/home/deploy/lab/app` | Deployment directory | Yes (for multi-path) |
+| `VM_DIR` | `/home/jenkins/lab/app` | Deployment directory | Yes (for multi-path) |
 
 **How to Override (Example: Deploy to Different VM):**
 ```groovy
@@ -360,7 +360,7 @@ Defined in Jenkinsfile `post` block:
 post {
   failure {
     echo "Hint: tail remote logs → docker --context vm-lab compose \
-      --project-directory /home/deploy/lab/app -p lab logs --no-color --tail=200"
+      --project-directory /home/jenkins/lab/app -p lab logs --no-color --tail=200"
   }
 }
 ```
@@ -374,11 +374,11 @@ post {
 ```bash
 # View all container logs (last 200 lines)
 docker --context vm-lab compose \
-  --project-directory /home/deploy/lab/app -p lab logs --tail=200
+  --project-directory /home/jenkins/lab/app -p lab logs --tail=200
 
 # View specific service logs
 docker --context vm-lab compose \
-  --project-directory /home/deploy/lab/app -p lab logs backend --tail=50
+  --project-directory /home/jenkins/lab/app -p lab logs backend --tail=50
 
 # Check container status
 docker --context vm-lab ps -a
@@ -445,13 +445,13 @@ Tempo:       http://localhost:3200
 **Step 1: Sync Files to VM**
 ```bash
 # From local machine
-rsync -az --delete ./ deploy@192.168.122.250:/home/deploy/lab/app/
+rsync -az --delete ./ jenkins@192.168.122.250:/home/jenkins/lab/app/
 ```
 
 **Step 2: SSH to VM and Deploy**
 ```bash
-ssh deploy@192.168.122.250
-cd /home/deploy/lab/app
+ssh jenkins@192.168.122.250
+cd /home/jenkins/lab/app
 
 # Run with VM IP for correct URLs
 PROJECT=lab LAB_HOST=192.168.122.250 ./start-lab.sh
@@ -1168,8 +1168,8 @@ git push origin main --force
 
 **Manual (SSH to VM):**
 ```bash
-ssh deploy@192.168.122.250
-cd /home/deploy/lab/app
+ssh jenkins@192.168.122.250
+cd /home/jenkins/lab/app
 git pull origin main
 PROJECT=lab LAB_HOST=192.168.122.250 ./start-lab.sh
 ```
@@ -1288,11 +1288,11 @@ Set in Jenkinsfile `environment` block:
 
 ```groovy
 environment {
-  VM_USER    = 'deploy'                  // SSH user on target VM
+  VM_USER    = 'jenkins'                  // SSH user on target VM
   VM_IP      = '192.168.122.250'         // Target VM IP address
   DOCKER_CTX = 'vm-lab'                  // Docker context name
   PROJECT    = 'lab'                     // Docker Compose project name
-  VM_DIR     = '/home/deploy/lab/app'    // Deployment directory on VM
+  VM_DIR     = '/home/jenkins/lab/app'    // Deployment directory on VM
 }
 ```
 
@@ -1468,21 +1468,21 @@ rsync error: some files/attrs were not transferred
 **Diagnostic Commands:**
 ```bash
 # Check SSH connectivity
-ssh deploy@192.168.122.250 'ls -la /home/deploy/lab/app'
+ssh jenkins@192.168.122.250 'ls -la /home/jenkins/lab/app'
 
 # Check directory ownership
-ssh deploy@192.168.122.250 'stat /home/deploy/lab/app'
+ssh jenkins@192.168.122.250 'stat /home/jenkins/lab/app'
 ```
 
 **Common Causes:**
-- Deployment directory not owned by `deploy` user
+- Deployment directory not owned by `jenkins` user
 - SSH key permissions incorrect
 - SELinux blocking file creation
 
 **Solution:**
 ```bash
 # Fix directory ownership
-ssh deploy@192.168.122.250 'sudo chown -R deploy:deploy /home/deploy/lab/app'
+ssh jenkins@192.168.122.250 'sudo chown -R jenkins:jenkins /home/jenkins/lab/app'
 
 # Fix SSH key permissions (on Jenkins agent)
 chmod 600 ~/.ssh/id_ed25519_jenkins
@@ -1500,7 +1500,7 @@ error during connect: error during connect: ssh: handshake failed: ssh: unable t
 **Diagnostic Commands:**
 ```bash
 # Test SSH manually
-ssh -i ~/.ssh/id_ed25519_jenkins deploy@192.168.122.250 'echo ok'
+ssh -i ~/.ssh/id_ed25519_jenkins jenkins@192.168.122.250 'echo ok'
 
 # Check SSH agent
 ssh-add -l
@@ -1509,7 +1509,7 @@ ssh-add -l
 **Common Causes:**
 - SSH key not loaded in agent
 - Wrong SSH key path
-- deploy user's `authorized_keys` incorrect
+- jenkins user's `authorized_keys` incorrect
 
 **Solution:**
 ```bash
@@ -1520,7 +1520,7 @@ ssh-add ~/.ssh/id_ed25519_jenkins
 ssh-add -l | grep ed25519
 
 # Re-install public key on VM
-ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub deploy@192.168.122.250
+ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub jenkins@192.168.122.250
 ```
 
 ---
@@ -1570,19 +1570,19 @@ docker compose -p lab restart prometheus
 **View Remote Container Logs from Jenkins:**
 ```bash
 # Using Docker context (recommended)
-docker --context vm-lab compose --project-directory /home/deploy/lab/app -p lab logs --tail=200
+docker --context vm-lab compose --project-directory /home/jenkins/lab/app -p lab logs --tail=200
 
 # Using SSH (alternative)
-ssh deploy@192.168.122.250 'cd /home/deploy/lab/app && docker compose -p lab logs --tail=200'
+ssh jenkins@192.168.122.250 'cd /home/jenkins/lab/app && docker compose -p lab logs --tail=200'
 ```
 
 **Manually Re-run Deployment Stage:**
 ```bash
 # SSH to VM
-ssh deploy@192.168.122.250
+ssh jenkins@192.168.122.250
 
 # Navigate to deployment directory
-cd /home/deploy/lab/app
+cd /home/jenkins/lab/app
 
 # Pull latest code
 git pull origin main
@@ -1625,10 +1625,10 @@ iostat -x 1 5
 
 ```bash
 # Add compression (already set in Jenkinsfile)
-rsync -az --delete ./ deploy@VM:/path/
+rsync -az --delete ./ jenkins@VM:/path/
 
 # Exclude unnecessary files
-rsync -az --delete --exclude='.git' --exclude='node_modules' ./ deploy@VM:/path/
+rsync -az --delete --exclude='.git' --exclude='node_modules' ./ jenkins@VM:/path/
 ```
 
 ---
@@ -1703,16 +1703,16 @@ docker compose -p lab logs -f backend
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_jenkins_new
 
 # Install on VM
-ssh-copy-id -i ~/.ssh/id_ed25519_jenkins_new.pub deploy@VM
+ssh-copy-id -i ~/.ssh/id_ed25519_jenkins_new.pub jenkins@VM
 
 # Update Jenkins credential
 # Remove old key from VM's authorized_keys
 ```
 
-**3. Limit Deploy User Permissions:**
+**3. Limit Jenkins User Permissions:**
 ```bash
-# Deploy user should NOT have sudo access
-sudo usermod -G docker deploy  # Only Docker group
+# Jenkins user should NOT have sudo access
+sudo usermod -G docker jenkins  # Only Docker group
 ```
 
 **4. Use Read-Only Mounts Where Possible:**
@@ -1773,7 +1773,7 @@ docker compose -p lab top
 
 ```bash
 # Create SSH-based context
-docker context create vm-lab --docker "host=ssh://deploy@192.168.122.250"
+docker context create vm-lab --docker "host=ssh://jenkins@192.168.122.250"
 
 # List contexts
 docker context ls

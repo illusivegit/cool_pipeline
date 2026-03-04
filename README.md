@@ -344,7 +344,7 @@ docker compose ps
   - SSH Agent Plugin (required)
   - Docker Pipeline (required)
   - Docker Plugin (required)
-- **Deploy target VM bootstrapped** — run [`scripts/bootstrap_debian13_jenkins_agent.sh`](scripts/bootstrap_debian13_jenkins_agent.sh) on a fresh Debian 13 VM to create the `deploy` user and configure Docker access (see [docs/jenkins-agent-vm.md](docs/jenkins-agent-vm.md) for details)
+- **Deploy target VM bootstrapped** — run [`scripts/bootstrap_debian13_jenkins_agent.sh`](scripts/bootstrap_debian13_jenkins_agent.sh) on a fresh Debian 13 VM to create the `jenkins` user and configure Docker access (see [docs/jenkins-agent-vm.md](docs/jenkins-agent-vm.md) for details)
 
 **Setup Steps:**
 1. Bootstrap the deploy target VM: `sudo bash scripts/bootstrap_debian13_jenkins_agent.sh`

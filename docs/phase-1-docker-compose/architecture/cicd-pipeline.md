@@ -58,7 +58,7 @@ Add the VM SSH key to Jenkins credentials store:
 - Navigate to: Manage Jenkins → Credentials → System → Global credentials
 - Add Credentials → Kind: SSH Username with private key
 - ID: `vm-ssh`
-- Username: `deploy`
+- Username: `jenkins`
 - Private Key: Enter directly or from file
 
 ### 5. Create Pipeline Job
@@ -122,11 +122,11 @@ pipeline {
   options { timestamps() }
 
   environment {
-    VM_USER    = 'deploy'
+    VM_USER    = 'jenkins'
     VM_IP      = '192.168.122.250'      // Target VM for deployment
     DOCKER_CTX = 'vm-lab'                // Remote Docker context
     PROJECT    = 'lab'                   // Docker Compose project name
-    VM_DIR     = '/home/deploy/lab/app' // Deployment directory on VM
+    VM_DIR     = '/home/jenkins/lab/app' // Deployment directory on VM
   }
 
   stages {
@@ -190,14 +190,14 @@ Validates the Docker agent has required tools:
 ### 2. Ensure remote Docker context
 Creates an SSH-based Docker context if it doesn't exist:
 ```bash
-docker context create vm-lab --docker "host=ssh://deploy@192.168.122.250"
+docker context create vm-lab --docker "host=ssh://jenkins@192.168.122.250"
 ```
 This allows the agent to run `docker --context vm-lab` commands for verification purposes.
 
 ### 3. Sync repo to VM
 Uses `rsync` to synchronize the entire repository to the VM:
 ```bash
-rsync -az --delete ./ deploy@192.168.122.250:/home/deploy/lab/app/
+rsync -az --delete ./ jenkins@192.168.122.250:/home/jenkins/lab/app/
 ```
 This is required because Docker Compose bind mounts need files to exist on the VM's filesystem.
 
@@ -236,7 +236,7 @@ Validates deployed services are responding:
 
 ### Docker Context for Verification
 
-**Creation:** `docker context create vm-lab --docker "host=ssh://deploy@192.168.122.250"`
+**Creation:** `docker context create vm-lab --docker "host=ssh://jenkins@192.168.122.250"`
 
 **Use Case:** Allows `docker --context vm-lab ps` from Jenkins agent for verification and troubleshooting.
 
@@ -272,9 +272,9 @@ Validates deployed services are responding:
 
 **Setup Process:**
 1. Generate key pair: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_jenkins`
-2. Temporarily set password on `deploy` user for key installation
-3. Copy public key: `ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub deploy@192.168.122.250`
-4. Lock password: `sudo passwd -l deploy`
+2. Temporarily set password on `jenkins` user for key installation
+3. Copy public key: `ssh-copy-id -i ~/.ssh/id_ed25519_jenkins.pub jenkins@192.168.122.250`
+4. Lock password: `sudo passwd -l jenkins`
 5. Disable password authentication in `/etc/ssh/sshd_config`:
    ```
    PasswordAuthentication no
@@ -290,11 +290,11 @@ Validates deployed services are responding:
 
 | Variable | Value | Purpose |
 |----------|-------|---------|
-| `VM_USER` | `deploy` | Non-root user on target VM |
+| `VM_USER` | `jenkins` | Non-root user on target VM |
 | `VM_IP` | `192.168.122.250` | Target VM IP address |
 | `DOCKER_CTX` | `vm-lab` | Name of Docker context for verification |
 | `PROJECT` | `lab` | Docker Compose project name (container prefix) |
-| `VM_DIR` | `/home/deploy/lab/app` | Deployment directory on VM |
+| `VM_DIR` | `/home/jenkins/lab/app` | Deployment directory on VM |
 
 ## Security Considerations
 
@@ -317,7 +317,7 @@ Validates deployed services are responding:
 
 ### View Remote Container Logs
 ```bash
-docker --context vm-lab compose --project-directory /home/deploy/lab/app -p lab logs --tail=200
+docker --context vm-lab compose --project-directory /home/jenkins/lab/app -p lab logs --tail=200
 ```
 
 ### Check Remote Container Status
@@ -327,12 +327,12 @@ docker --context vm-lab ps -a
 
 ### Verify SSH Connectivity
 ```bash
-ssh deploy@192.168.122.250 'docker compose -p lab ps'
+ssh jenkins@192.168.122.250 'docker compose -p lab ps'
 ```
 
 ### Re-run Deployment Manually
 ```bash
-ssh deploy@192.168.122.250 'cd /home/deploy/lab/app && ./start-lab.sh'
+ssh jenkins@192.168.122.250 'cd /home/jenkins/lab/app && ./start-lab.sh'
 ```
 
 ## Related Documentation

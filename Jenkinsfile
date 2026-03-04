@@ -3,11 +3,11 @@ pipeline {
   options { timestamps() }
 
   environment {
-    VM_USER    = 'deploy'
+    VM_USER    = 'jenkins'
     VM_IP      = '192.168.122.230'
     DOCKER_CTX = 'vm-lab'
     PROJECT    = 'lab'
-    VM_DIR     = '/home/deploy/lab/app'
+    VM_DIR     = '/home/jenkins/lab/app'
   }
 
   stages {
@@ -82,8 +82,8 @@ pipeline {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
             set -eu
-            echo "Waiting for services to stabilize..."
-            sleep 15
+            echo "Waiting for services to stabilize (Tempo/Loki need ~45s on cold start)..."
+            sleep 45
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
               LAB_HOST=${VM_IP} make health

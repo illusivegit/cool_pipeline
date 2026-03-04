@@ -46,7 +46,7 @@ Before deploying, ensure these configurations are correct:
 
 ```bash
 # On your VM (not dev host):
-cd /home/deploy/lab/app
+cd /home/jenkins/lab/app
 
 # Remove old containers and volumes
 docker compose -p lab down -v
@@ -398,7 +398,7 @@ GET /api/tasks
 
 This lab can be integrated into a Jenkins DevSecOps pipeline for automated testing and deployment.
 
-**Note:** The actual Jenkinsfile in this repository uses a different deployment strategy (SSH + rsync to remote VM at `/home/deploy/lab/app`). The example below demonstrates a simpler local Docker Compose deployment. **Adapt paths and deployment method to match your infrastructure.**
+**Note:** The actual Jenkinsfile in this repository uses a different deployment strategy (SSH + rsync to remote VM at `/home/jenkins/lab/app`). The example below demonstrates a simpler local Docker Compose deployment. **Adapt paths and deployment method to match your infrastructure.**
 
 For the actual production Jenkinsfile, see: [Jenkinsfile](../../Jenkinsfile)
 

@@ -841,10 +841,10 @@ stage('Deploy to Remote Context') {
     - name: Sync files
       synchronize:
         src: ./
-        dest: /home/deploy/lab/app
+        dest: /home/jenkins/lab/app
     - name: Deploy stack
       community.docker.docker_compose:
-        project_src: /home/deploy/lab/app
+        project_src: /home/jenkins/lab/app
         state: present
 ```
 - ✅ Pros:
@@ -867,7 +867,7 @@ stage('Deploy to Remote Context') {
 **TRADE-OFFS ACCEPTED:**
 - Manual SSH key management (Jenkins credentials plugin)
 - Two-stage deployment (sync, then compose)
-- Hardcoded VM path (`/home/deploy/lab/app`)
+- Hardcoded VM path (`/home/jenkins/lab/app`)
 
 **IMPLEMENTATION DETAILS:**
 
@@ -1204,7 +1204,7 @@ PubkeyAuthentication yes
 PasswordAuthentication no
 
 # Lock user password
-sudo passwd -l deploy
+sudo passwd -l jenkins
 ```
 - ✅ Pros:
   - Industry best practice for production servers
@@ -1266,10 +1266,10 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_jenkins -C "jenkins-deployment-key"
 
 **Key Distribution Process:**
 1. Generate key pair on Jenkins host
-2. Set temporary password on `deploy` user
+2. Set temporary password on `jenkins` user
 3. Use `ssh-copy-id` to install public key
 4. Test key-based login
-5. Lock password: `sudo passwd -l deploy`
+5. Lock password: `sudo passwd -l jenkins`
 6. Disable password auth in `sshd_config`
 7. Restart SSH daemon
 8. Final test (ensure password fails, key works)

@@ -975,8 +975,8 @@ The metrics dropdown issue turned out to be a **time range mismatch**, not a con
 
 ```bash
 # To test on your VM:
-scp debug-metrics-dropdown.sh deploy@192.168.122.250:/home/deploy/lab/app/
-ssh deploy@192.168.122.250 "cd /home/deploy/lab/app && chmod +x debug-metrics-dropdown.sh && ./debug-metrics-dropdown.sh"
+scp debug-metrics-dropdown.sh jenkins@192.168.122.250:/home/jenkins/lab/app/
+ssh jenkins@192.168.122.250 "cd /home/jenkins/lab/app && chmod +x debug-metrics-dropdown.sh && ./debug-metrics-dropdown.sh"
 
 # Then in browser on VM:
 # 1. Open http://192.168.122.250:3000
