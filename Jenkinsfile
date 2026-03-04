@@ -82,8 +82,20 @@ pipeline {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
             set -eu
-            echo "Waiting for services to stabilize (Tempo/Loki need ~45s on cold start)..."
-            sleep 45
+            echo "Waiting for Tempo and Loki readiness (up to 3 minutes)..."
+            for i in $(seq 1 18); do
+              ready=$(ssh ${VM_USER}@${VM_IP} "
+                curl -sf http://localhost:3200/ready >/dev/null 2>&1 && \
+                curl -sf http://localhost:3100/ready >/dev/null 2>&1 && \
+                echo READY || echo WAIT
+              ")
+              if [ "$ready" = "READY" ]; then
+                echo "All services ready after $((i*10)) seconds."
+                break
+              fi
+              echo "  Not ready yet (attempt $i/18)..."
+              sleep 10
+            done
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
               LAB_HOST=${VM_IP} make health

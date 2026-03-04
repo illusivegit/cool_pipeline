@@ -189,7 +189,7 @@ sudo apt-get purge -y rsync unattended-upgrades
 virsh -c qemu:///system shutdown debian13
 # Wait for shutdown, then:
 virsh -c qemu:///system snapshot-revert debian13 docker_install --running
-ssh -i ~/.ssh/id_ed25519_fedora debian@192.168.122.230
+ssh -i ~/.ssh/id_ed25519_jenkins debian@192.168.122.230
 ```
 
 ## Jenkinsfile Pipeline Flow on This VM
