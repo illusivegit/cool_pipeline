@@ -28,8 +28,8 @@ pipeline {
           sh '''
             set -eu
             ssh -o StrictHostKeyChecking=no ${VM_USER}@${VM_IP} 'echo ok'
-            docker context ls | grep -q "^${DOCKER_CTX} " || \
-              docker context create ${DOCKER_CTX} --docker "host=ssh://${VM_USER}@${VM_IP}"
+            docker context rm -f ${DOCKER_CTX} 2>/dev/null || true
+            docker context create ${DOCKER_CTX} --docker "host=ssh://${VM_USER}@${VM_IP}"
             docker --context ${DOCKER_CTX} info
           '''
         }
