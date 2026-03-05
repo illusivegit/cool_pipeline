@@ -9,42 +9,42 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: nginx
+  - job_name: nginx-access
     static_configs:
       - targets:
           - localhost
         labels:
           job: nginx
+          log_type: access
           environment: reference
-          __path__: /var/log/nginx/*.log
+          __path__: /var/log/nginx/access.log
 
     pipeline_stages:
-      # Detect access log vs error log by filename
-      - match:
-          selector: '{job="nginx"}'
-          stages:
-            - regex:
-                source: filename
-                expression: '/var/log/nginx/(?P<log_type>[a-z]+)\\.log'
-            - labels:
-                log_type:
+      - regex:
+          expression: '^(?P<remote_addr>[\d.]+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+      - labels:
+          method:
+          status:
+      # Normalize paths to bounded groups (prevents unbounded cardinality)
+      - replace:
+          expression: '^/api/tasks/\d+'
+          source: path
+          replace: '/api/tasks/:id'
+      - labels:
+          path_group: path
 
-      # Parse Nginx combined access log format
-      - match:
-          selector: '{log_type="access"}'
-          stages:
-            - regex:
-                expression: '^(?P<remote_addr>[\d.]+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) (?P<protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
-            - labels:
-                method:
-                status:
-                path:
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          log_type: error
+          environment: reference
+          __path__: /var/log/nginx/error.log
 
-      # Parse Nginx error log
-      - match:
-          selector: '{log_type="error"}'
-          stages:
-            - regex:
-                expression: '(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<message>.*)'
-            - labels:
-                level:
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<message>.*)'
+      - labels:
+          level:

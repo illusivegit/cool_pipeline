@@ -1,0 +1,279 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 910" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#22c55e"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#f97316"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#a855f7"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="10" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#ef4444"/>
+    </marker>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="910" fill="#f8fafc" rx="8"/>
+
+  <!-- Title -->
+  <text x="550" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">Observability Stack — Data Flow</text>
+
+  <!-- ════════════════════ USER (external) ════════════════════ -->
+  <rect x="30" y="50" width="1040" height="75" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="50" y="70" font-size="11" font-weight="600" fill="#475569" letter-spacing="1">USER (external)</text>
+
+  <!-- Browser -->
+  <rect x="390" y="78" width="170" height="38" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="475" y="102" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">Browser</text>
+  <text x="610" y="102" font-size="10" fill="#64748b">User's machine — OTel JS SDK for client-side traces</text>
+
+  <!-- ════════════════════ DOCKER COMPOSE BOUNDARY ════════════════════ -->
+  <rect x="20" y="135" width="1060" height="485" rx="12" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="40" y="154" font-size="12" font-weight="700" fill="#334155">DOCKER COMPOSE  (12 containers)</text>
+
+  <!-- ════════════════════ APPLICATION LAYER ════════════════════ -->
+  <rect x="30" y="162" width="1040" height="90" rx="10" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="50" y="182" font-size="11" font-weight="600" fill="#1e40af" letter-spacing="1">APPLICATION</text>
+
+  <!-- Nginx -->
+  <rect x="80" y="192" width="200" height="48" rx="8" fill="#fff" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="180" y="213" text-anchor="middle" font-size="13" font-weight="600" fill="#1e3a5f">Nginx Frontend</text>
+  <text x="180" y="229" text-anchor="middle" font-size="10" fill="#64748b">:8080  proxy + rate-limited /v1/traces</text>
+
+  <!-- Flask -->
+  <rect x="370" y="192" width="200" height="48" rx="8" fill="#fff" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="470" y="213" text-anchor="middle" font-size="13" font-weight="600" fill="#1e3a5f">Flask Backend</text>
+  <text x="470" y="229" text-anchor="middle" font-size="10" fill="#64748b">:5000  OTel SDK + /metrics</text>
+
+  <!-- Nginx -> Flask -->
+  <line x1="280" y1="216" x2="368" y2="216" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="324" y="210" text-anchor="middle" font-size="9" fill="#64748b">/api/*</text>
+
+  <!-- Browser -> Nginx (HTTP) -->
+  <path d="M430,116 L200,190" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="290" y="146" font-size="9" fill="#64748b">HTTP :8080</text>
+
+  <!-- Browser -> Nginx (OTLP/HTTP traces, same-origin) -->
+  <path d="M475,116 L180,190" stroke="#a855f7" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+  <text x="360" y="145" font-size="9" fill="#a855f7">/v1/traces</text>
+  <text x="360" y="157" font-size="9" fill="#a855f7">(same-origin)</text>
+
+  <!-- ════════════════════ COLLECTION LAYER ════════════════════ -->
+  <rect x="30" y="272" width="700" height="100" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+  <text x="50" y="292" font-size="11" font-weight="600" fill="#166534" letter-spacing="1">TELEMETRY COLLECTION</text>
+
+  <!-- Promtail -->
+  <rect x="60" y="302" width="140" height="55" rx="8" fill="#fff" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="130" y="325" text-anchor="middle" font-size="13" font-weight="600" fill="#14532d">Promtail</text>
+  <text x="130" y="341" text-anchor="middle" font-size="10" fill="#64748b">nginx log shipper</text>
+
+  <!-- Nginx Exporter -->
+  <rect x="230" y="302" width="150" height="55" rx="8" fill="#fff" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="305" y="325" text-anchor="middle" font-size="13" font-weight="600" fill="#14532d">Nginx Exporter</text>
+  <text x="305" y="341" text-anchor="middle" font-size="10" fill="#64748b">:9113  stub_status</text>
+
+  <!-- OTel Collector -->
+  <rect x="410" y="302" width="190" height="55" rx="8" fill="#fff" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="505" y="325" text-anchor="middle" font-size="13" font-weight="600" fill="#14532d">OTel Collector</text>
+  <text x="505" y="341" text-anchor="middle" font-size="10" fill="#64748b">:4317  OTLP (4318 internal only)</text>
+
+  <!-- Nginx -> Promtail (logs) -->
+  <path d="M130,240 L130,300" stroke="#22c55e" stroke-width="1.5" fill="none" marker-end="url(#arrow-green)" stroke-dasharray="5,3"/>
+  <text x="115" y="275" font-size="9" fill="#22c55e">logs</text>
+
+  <!-- Nginx -> Nginx Exporter (stub_status) -->
+  <path d="M230,240 L305,300" stroke="#f97316" stroke-width="1.5" fill="none" marker-end="url(#arrow-orange)" stroke-dasharray="5,3"/>
+  <text x="248" y="268" font-size="9" fill="#f97316">stub_status</text>
+
+  <!-- Flask -> OTel Collector (OTLP) -->
+  <path d="M490,240 L505,300" stroke="#3b82f6" stroke-width="1.5" fill="none" marker-end="url(#arrow-blue)"/>
+  <text x="510" y="275" font-size="9" fill="#3b82f6">OTLP</text>
+
+  <!-- Nginx -> OTel Collector (proxied browser traces, rate-limited) -->
+  <path d="M240,240 L460,300" stroke="#a855f7" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+  <text x="310" y="266" font-size="9" fill="#a855f7">proxy /v1/traces</text>
+  <text x="310" y="278" font-size="9" fill="#a855f7">(rate-limited)</text>
+
+  <!-- ════════════════════ EXPORTERS ════════════════════ -->
+  <rect x="740" y="272" width="320" height="225" rx="10" fill="#fdf2f8" stroke="#fbcfe8" stroke-width="1.5"/>
+  <text x="760" y="292" font-size="11" font-weight="600" fill="#9d174d" letter-spacing="1">EXPORTERS</text>
+
+  <!-- Node Exporter -->
+  <rect x="760" y="305" width="140" height="48" rx="8" fill="#fff" stroke="#f9a8d4" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="830" y="325" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">Node Exporter</text>
+  <text x="830" y="341" text-anchor="middle" font-size="10" fill="#64748b">:9100  host metrics</text>
+
+  <!-- cAdvisor -->
+  <rect x="760" y="365" width="140" height="48" rx="8" fill="#fff" stroke="#f9a8d4" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="830" y="385" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">cAdvisor</text>
+  <text x="830" y="401" text-anchor="middle" font-size="10" fill="#64748b">:8081  container metrics</text>
+
+  <!-- Exporter descriptions -->
+  <text x="920" y="325" font-size="9" fill="#64748b">CPU, memory, disk,</text>
+  <text x="920" y="337" font-size="9" fill="#64748b">network</text>
+  <text x="920" y="385" font-size="9" fill="#64748b">cgroup CPU, memory,</text>
+  <text x="920" y="397" font-size="9" fill="#64748b">network (bridge), fs</text>
+
+  <!-- ════════════════════ STORAGE LAYER ════════════════════ -->
+  <rect x="30" y="392" width="700" height="100" rx="10" fill="#fefce8" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="50" y="412" font-size="11" font-weight="600" fill="#854d0e" letter-spacing="1">STORAGE</text>
+
+  <!-- Loki -->
+  <rect x="60" y="422" width="140" height="55" rx="8" fill="#fff" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="130" y="445" text-anchor="middle" font-size="13" font-weight="600" fill="#713f12">Loki</text>
+  <text x="130" y="461" text-anchor="middle" font-size="10" fill="#64748b">:3100  log aggregation</text>
+
+  <!-- Tempo -->
+  <rect x="230" y="422" width="140" height="55" rx="8" fill="#fff" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="300" y="445" text-anchor="middle" font-size="13" font-weight="600" fill="#713f12">Tempo</text>
+  <text x="300" y="461" text-anchor="middle" font-size="10" fill="#64748b">:3200  trace storage</text>
+
+  <!-- Prometheus -->
+  <rect x="410" y="422" width="210" height="55" rx="8" fill="#fff" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="515" y="445" text-anchor="middle" font-size="13" font-weight="600" fill="#713f12">Prometheus</text>
+  <text x="515" y="461" text-anchor="middle" font-size="10" fill="#64748b">:9090  10 targets, 14 alerts, 8 rec. rules</text>
+
+  <!-- Promtail -> Loki -->
+  <path d="M130,357 L130,420" stroke="#22c55e" stroke-width="1.5" fill="none" marker-end="url(#arrow-green)"/>
+  <text x="138" y="393" font-size="9" fill="#22c55e">push</text>
+
+  <!-- OTel -> Loki (logs) -->
+  <path d="M460,357 L160,420" stroke="#22c55e" stroke-width="1.5" fill="none" marker-end="url(#arrow-green)"/>
+  <text x="290" y="382" font-size="9" fill="#22c55e">logs</text>
+
+  <!-- OTel -> Tempo (traces) -->
+  <path d="M490,357 L320,420" stroke="#3b82f6" stroke-width="1.5" fill="none" marker-end="url(#arrow-blue)"/>
+  <text x="395" y="382" font-size="9" fill="#3b82f6">traces</text>
+
+  <!-- Nginx Exporter -> Prometheus (scrape) -->
+  <path d="M340,357 L490,420" stroke="#f97316" stroke-width="1.5" fill="none" marker-end="url(#arrow-orange)" stroke-dasharray="5,3"/>
+
+  <!-- Flask /metrics -> Prometheus (scrape - direct from app layer) -->
+  <path d="M570,240 L540,420" stroke="#f97316" stroke-width="1.5" fill="none" marker-end="url(#arrow-orange)" stroke-dasharray="5,3"/>
+  <text x="568" y="335" font-size="9" fill="#f97316">/metrics</text>
+
+  <!-- Exporters -> Prometheus (scrape) -->
+  <path d="M760,330 L622,440" stroke="#f97316" stroke-width="1.5" fill="none" marker-start="url(#arrow-orange)" stroke-dasharray="5,3"/>
+  <path d="M760,390 L622,450" stroke="#f97316" stroke-width="1.5" fill="none" marker-start="url(#arrow-orange)" stroke-dasharray="5,3"/>
+  <text x="685" y="420" font-size="9" fill="#f97316">scrape</text>
+
+  <!-- Tempo -> Prometheus (remote write) -->
+  <path d="M370,449 L408,449" stroke="#854d0e" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="389" y="442" font-size="8" fill="#854d0e">remote write</text>
+
+  <!-- ════════════════════ ALERTING ════════════════════ -->
+  <rect x="740" y="430" width="320" height="65" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="1.5"/>
+  <text x="760" y="450" font-size="11" font-weight="600" fill="#991b1b" letter-spacing="1">ALERTING</text>
+
+  <!-- Alertmanager -->
+  <rect x="780" y="458" width="180" height="28" rx="6" fill="#fff" stroke="#fca5a5" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="870" y="477" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">Alertmanager :9093</text>
+
+  <!-- Prometheus -> Alertmanager -->
+  <path d="M622,460 L778,472" stroke="#ef4444" stroke-width="1.5" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="690" y="460" font-size="9" fill="#ef4444">fires alerts</text>
+
+  <!-- ════════════════════ VISUALIZATION LAYER ════════════════════ -->
+  <rect x="30" y="512" width="1040" height="100" rx="10" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1.5"/>
+  <text x="50" y="532" font-size="11" font-weight="600" fill="#5b21b6" letter-spacing="1">VISUALIZATION</text>
+
+  <!-- Grafana -->
+  <rect x="80" y="542" width="280" height="58" rx="8" fill="#fff" stroke="#c4b5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="220" y="564" text-anchor="middle" font-size="14" font-weight="700" fill="#3b0764">Grafana :3000</text>
+  <text x="220" y="580" text-anchor="middle" font-size="10" fill="#64748b">4 datasources  |  4 dashboards</text>
+
+  <!-- Dashboard list -->
+  <text x="400" y="552" font-size="10" fill="#6b21a8">Overview</text>
+  <text x="400" y="567" font-size="10" fill="#6b21a8">Service Health</text>
+  <text x="540" y="552" font-size="10" fill="#6b21a8">Infrastructure</text>
+  <text x="540" y="567" font-size="10" fill="#6b21a8">End-to-End Tracing</text>
+
+  <!-- Grafana -> Loki (queries logs) -->
+  <path d="M160,540 L130,477" stroke="#a855f7" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+  <!-- Grafana -> Tempo (queries traces) -->
+  <path d="M240,540 L300,477" stroke="#a855f7" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+  <!-- Grafana -> Prometheus (queries metrics) -->
+  <path d="M320,540 L490,477" stroke="#a855f7" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+
+  <!-- Datasource labels -->
+  <text x="120" y="515" font-size="9" fill="#a855f7">logs</text>
+  <text x="255" y="515" font-size="9" fill="#a855f7">traces</text>
+  <text x="395" y="515" font-size="9" fill="#a855f7">metrics</text>
+
+  <!-- Grafana -> Alertmanager (queries alerts) -->
+  <path d="M362,571 L870,571 L870,495" stroke="#a855f7" stroke-width="1.5" fill="none" marker-end="url(#arrow-purple)"/>
+  <text x="640" y="582" font-size="9" fill="#a855f7">alerts</text>
+
+  <!-- ════════════════════ DASHBOARDS ════════════════════ -->
+  <rect x="30" y="632" width="1040" height="52" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="50" y="654" font-size="11" font-weight="600" fill="#334155" letter-spacing="1">DASHBOARDS</text>
+
+  <rect x="310" y="640" width="110" height="32" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="365" y="660" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">Overview</text>
+
+  <rect x="440" y="640" width="120" height="32" rx="6" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="500" y="660" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">Service Health</text>
+
+  <rect x="580" y="640" width="125" height="32" rx="6" fill="#fef9c3" stroke="#fde68a" stroke-width="1"/>
+  <text x="643" y="660" text-anchor="middle" font-size="11" font-weight="600" fill="#854d0e">Infrastructure</text>
+
+  <rect x="725" y="640" width="145" height="32" rx="6" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1"/>
+  <text x="798" y="660" text-anchor="middle" font-size="11" font-weight="600" fill="#6b21a8">End-to-End Tracing</text>
+
+  <!-- ════════════════════ LEGEND ════════════════════ -->
+  <rect x="30" y="704" width="1040" height="195" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="50" y="726" font-size="11" font-weight="600" fill="#334155" letter-spacing="1">LEGEND</text>
+
+  <!-- Line types - column 1 -->
+  <line x1="50" y1="748" x2="90" y2="748" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="100" y="752" font-size="10" fill="#334155">HTTP request</text>
+
+  <line x1="50" y1="772" x2="90" y2="772" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <text x="100" y="776" font-size="10" fill="#334155">OTLP export (traces/logs)</text>
+
+  <line x1="50" y1="796" x2="90" y2="796" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="100" y="800" font-size="10" fill="#334155">Log push (Promtail/OTel -> Loki)</text>
+
+  <!-- Line types - column 2 -->
+  <line x1="350" y1="748" x2="390" y2="748" stroke="#f97316" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-orange)"/>
+  <text x="400" y="752" font-size="10" fill="#334155">Prometheus scrape (pull)</text>
+
+  <line x1="350" y1="772" x2="390" y2="772" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <text x="400" y="776" font-size="10" fill="#334155">Query (Grafana reads datasources)</text>
+
+  <line x1="350" y1="796" x2="390" y2="796" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+  <text x="400" y="800" font-size="10" fill="#334155">Alert firing</text>
+
+  <line x1="350" y1="820" x2="390" y2="820" stroke="#854d0e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="400" y="824" font-size="10" fill="#334155">Remote write (Tempo -> Prometheus)</text>
+
+  <!-- Dashed boundary label -->
+  <line x1="350" y1="844" x2="390" y2="844" stroke="#334155" stroke-width="1.5" stroke-dasharray="8,4"/>
+  <text x="400" y="848" font-size="10" fill="#334155">Docker Compose boundary</text>
+
+  <!-- Network badges -->
+  <text x="700" y="748" font-size="11" font-weight="600" fill="#334155">Networks:</text>
+  <rect x="775" y="734" width="90" height="20" rx="4" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="820" y="748" text-anchor="middle" font-size="10" fill="#1e40af">frontend-net</text>
+  <rect x="875" y="734" width="85" height="20" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="918" y="748" text-anchor="middle" font-size="10" fill="#166534">backend-net</text>
+  <rect x="970" y="734" width="85" height="20" rx="4" fill="#fef9c3" stroke="#fde68a" stroke-width="1"/>
+  <text x="1013" y="748" text-anchor="middle" font-size="10" fill="#854d0e">observability</text>
+
+  <!-- Service count -->
+  <text x="700" y="790" font-size="11" font-weight="600" fill="#334155">12 containers</text>
+  <text x="700" y="806" font-size="10" fill="#64748b">10 scrape targets</text>
+  <text x="700" y="822" font-size="10" fill="#64748b">14 alert rules  |  8 recording rules</text>
+  <text x="700" y="838" font-size="10" fill="#64748b">4 dashboards</text>
+</svg>

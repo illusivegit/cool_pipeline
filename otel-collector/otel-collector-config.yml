@@ -7,8 +7,7 @@ receivers:
         endpoint: 0.0.0.0:4318
         cors:
           allowed_origins:
-            - "http://localhost:8080"
-            - "http://*"
+            - "${env:ALLOWED_ORIGIN}"
           allowed_headers:
             - "*"
 

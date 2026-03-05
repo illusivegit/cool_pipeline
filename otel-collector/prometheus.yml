@@ -26,47 +26,54 @@ scrape_configs:
   - job_name: 'otel-collector'
     static_configs:
       - targets: ['otel-collector:8888']
-        labels:
-          service: 'otel-collector'
 
   # Scrape Flask backend metrics
   - job_name: 'flask-backend'
+    honor_labels: true
     static_configs:
       - targets: ['backend:5000']
-        labels:
-          service: 'flask-backend'
 
   # Scrape Tempo metrics
   - job_name: 'tempo'
     static_configs:
       - targets: ['tempo:3200']
-        labels:
-          service: 'tempo'
 
   # Scrape Loki metrics
   - job_name: 'loki'
     static_configs:
       - targets: ['loki:3100']
-        labels:
-          service: 'loki'
 
   # Scrape Grafana metrics
   - job_name: 'grafana'
     static_configs:
       - targets: ['grafana:3000']
-        labels:
-          service: 'grafana'
 
   # Scrape Node Exporter (host metrics)
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['node-exporter:9100']
-        labels:
-          service: 'node-exporter'
 
   # Scrape Alertmanager metrics
   - job_name: 'alertmanager'
     static_configs:
       - targets: ['alertmanager:9093']
-        labels:
-          service: 'alertmanager'
+
+  # Scrape Nginx edge metrics (stub_status via exporter sidecar)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+  # Scrape container metrics (cAdvisor)
+  - job_name: 'cadvisor'
+    honor_timestamps: false
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metric_relabel_configs:
+      # Keep only the container metrics we need
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|memory_usage_bytes|memory_working_set_bytes|spec_memory_limit_bytes|network_receive_bytes_total|network_transmit_bytes_total|fs_usage_bytes|fs_limit_bytes|spec_cpu_quota|spec_cpu_period)
+        action: keep
+      # Drop non-Docker cgroups (keep / for network, /docker and /docker/*)
+      - source_labels: [id]
+        regex: /kubepods.*|/podruntime.*|/procd-paused|/restricted
+        action: drop

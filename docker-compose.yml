@@ -91,9 +91,10 @@ services:
     command: ["--config=/etc/otel-collector-config.yml"]
     volumes:
       - ./otel-collector/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    environment:
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-http://localhost:8080}
     ports:
       - "${OTEL_GRPC_PORT:-4317}:4317"
-      - "${OTEL_HTTP_PORT:-4318}:4318"
       - "8888:8888"
       - "8889:8889"
       - "13133:13133"
@@ -264,6 +265,32 @@ services:
       - frontend-net
       - backend-net
 
+  nginx-exporter:
+    image: ${NGINX_EXPORTER_IMAGE}
+    container_name: nginx-exporter
+    command:
+      - '--nginx.scrape-uri=http://frontend:80/stub_status'
+    ports:
+      - "9113:9113"
+    depends_on:
+      - frontend
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+        reservations:
+          cpus: '0.05'
+          memory: 16M
+    cap_drop:
+      - ALL
+    networks:
+      - frontend-net
+      - observability
+
   promtail:
     image: ${PROMTAIL_IMAGE}
     container_name: promtail
@@ -325,6 +352,31 @@ services:
       - ALL
     networks:
       - frontend-net
+      - observability
+
+  cadvisor:
+    image: ${CADVISOR_IMAGE}
+    container_name: cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    networks:
       - observability
 
 # ── Networks ──────────────────────────────────────────────────────────────────

@@ -23,9 +23,8 @@ const provider = new WebTracerProvider({
   resource: resource,
 });
 
-// Configure OTLP exporter - Dynamic URL based on current hostname
-// This makes the config work across all environments (localhost, VM, cloud)
-const collectorUrl = `http://${window.location.hostname}:4318/v1/traces`;
+// Configure OTLP exporter - same-origin through Nginx (rate-limited, no CORS needed)
+const collectorUrl = '/v1/traces';
 const exporter = new OTLPTraceExporter({
   url: collectorUrl,
 });

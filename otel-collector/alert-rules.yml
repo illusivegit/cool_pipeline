@@ -13,16 +13,16 @@ groups:
       - alert: HighErrorRate
         expr: |
           (
-            sum(rate(http_requests_total{status_code=~"5.."}[2m]))
+            sum(rate(http_errors_total[5m]))
             /
-            sum(rate(http_requests_total{endpoint!="metrics"}[2m]))
+            clamp_min(sum(rate(http_requests_total{endpoint!="metrics"}[5m])), 1e-10)
           ) > 0.05
-        for: 30s
+        for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "High HTTP 5xx error rate"
-          description: "More than 5% of non-metrics requests are returning 5xx status codes."
+          summary: "HTTP 5xx error rate above 5%"
+          description: "{{ $value | humanizePercentage }} of requests returning 5xx."
 
       - alert: HighLatencyP95
         expr: |
@@ -81,10 +81,81 @@ groups:
           description: "Target {{ $labels.instance }} in job {{ $labels.job }} has been down for 2 minutes."
 
       - alert: OtelCollectorDroppedSpans
-        expr: rate(otelcol_exporter_send_failed_spans_total[5m]) > 0
+        expr: rate(otelcol_exporter_send_failed_spans[5m]) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "OTel Collector dropping spans"
           description: "The OTel Collector is failing to export spans to Tempo."
+
+  - name: slo
+    rules:
+      - alert: HighAvailabilityBurnRate
+        expr: |
+          (
+            sum(rate(http_errors_total[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total{endpoint!="metrics"}[5m])), 1e-10)
+          ) > 14.4 * (1 - 0.99)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Availability SLO burn rate is critical"
+          description: "Error rate is burning through the 99% availability SLO at 14.4x the sustainable rate."
+
+  - name: storage
+    rules:
+      - alert: PrometheusTSDBHighDiskUsage
+        expr: |
+          (prometheus_tsdb_storage_blocks_bytes + prometheus_tsdb_wal_storage_size_bytes)
+          / (1024 * 1024 * 1024) > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus TSDB using more than 4GB disk"
+          description: "Prometheus storage is at {{ $value | humanize }}GB."
+
+      - alert: HostDiskWillFillIn24h
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{mountpoint="/",fstype=~"ext4|xfs|btrfs"}[6h], 24*3600) < 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host disk predicted to fill within 24 hours"
+          description: "Based on 6h trend, root filesystem will be full in <24h."
+
+  - name: collector-health
+    rules:
+      - alert: OtelCollectorHighMemory
+        expr: |
+          otelcol_process_memory_rss > 400 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OTel Collector using >400MB RSS (limit: 512MB)"
+          description: "Approaching 512MB memory limit. May start dropping data."
+
+      - alert: LokiIngestionErrors
+        expr: |
+          sum(rate(loki_request_duration_seconds_count{method="POST",route="loki_api_v1_push",status_code=~"5.."}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki is returning 5xx on log push"
+          description: "Logs may be lost."
+
+      - alert: PrometheusScrapeSlow
+        expr: |
+          scrape_duration_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus scrape >10s for {{ $labels.job }}"
+          description: "Slow scrapes may indicate unhealthy target."
