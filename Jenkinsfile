@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'docker-agent1' }
+  agent { label 'agent1' }
   options { timestamps() }
 
   environment {

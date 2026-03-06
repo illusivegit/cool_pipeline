@@ -13,10 +13,10 @@
 #   up the application stack via docker compose.
 #
 #   ┌──────────────────────┐  SSH + rsync   ┌──────────────────────────┐
-#   │  CI Host             │ ────────────► │  This VM (deploy target) │
-#   │  Jenkins controller  │               │                          │
-#   │  Jenkins agent       │  docker ctx   │  jenkins user             │
-#   │  (Docker container)  │ ────────────► │  docker compose up       │
+#   │  CI Host             │ ────────────►  │  This VM (deploy target) │
+#   │  Jenkins controller  │                │                          │
+#   │  Jenkins agent       │  docker ctx    │  jenkins user            │
+#   │  (Docker container)  │ ────────────►  │  docker compose up       │
 #   └──────────────────────┘                └──────────────────────────┘
 #
 # What it installs (only what the pipeline needs on this VM):
