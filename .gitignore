@@ -36,7 +36,7 @@ backups/
 artifacts/state/
 
 # Secrets
-.env.secrets
+# .env.secrets
 
 # Rendered alertmanager config (contains secrets from .env.secrets)
 otel-collector/.alertmanager-rendered.yml
