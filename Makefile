@@ -18,6 +18,7 @@ SHELL := /bin/bash
 
 # Load .env if present (image tags, ports, retention, project name)
 -include .env
+-include .env.secrets
 export
 
 PROJECT  ?= lab
@@ -59,11 +60,25 @@ help: ## Show this help message
 	@echo "CLEANUP:"
 	@printf "  \033[36m%-25s\033[0m %s\n" "nuke"    "Destroy everything (containers, volumes, images, artifacts)"
 
+# ── Config Rendering ──────────────────────────────────────────────────────
+
+.PHONY: render-alertmanager
+
+render-alertmanager:
+	@if [ "$(ENABLE_ALERTING)" = "true" ] && [ -f .env.secrets ]; then \
+		set -a && . ./.env && . ./.env.secrets && set +a && \
+		envsubst < otel-collector/alertmanager.yml.tmpl > otel-collector/.alertmanager-rendered.yml && \
+		echo "Alertmanager config rendered (alerting enabled)"; \
+	else \
+		cp otel-collector/alertmanager.yml otel-collector/.alertmanager-rendered.yml && \
+		echo "Alertmanager config copied (alerting disabled — no .env.secrets or ENABLE_ALERTING!=true)"; \
+	fi
+
 # ── Deployment ──────────────────────────────────────────────────────────────
 
 .PHONY: up down restart
 
-up: ## Build and start all services
+up: render-alertmanager ## Build and start all services
 	@DOCKER_BUILDKIT=1 docker compose -p $(PROJECT) up -d --build
 
 down: ## Stop all services (preserve volumes)

@@ -35,5 +35,11 @@ grafana/data/
 backups/
 artifacts/state/
 
+# Secrets
+.env.secrets
+
+# Rendered alertmanager config (contains secrets from .env.secrets)
+otel-collector/.alertmanager-rendered.yml
+
 # IMPORTANT: Private documentation archive (strategic IP protection)
 PRIVATE_DOCS_ARCHIVE/

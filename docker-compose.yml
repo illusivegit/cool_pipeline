@@ -128,7 +128,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     volumes:
-      - ./otel-collector/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./otel-collector/.alertmanager-rendered.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
     ports:
       - "${ALERTMANAGER_PORT:-9093}:9093"
