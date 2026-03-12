@@ -1,0 +1,113 @@
+# ============================================================================
+# PR Gate — Gate 3: SCM-level quality checks
+# ============================================================================
+#
+# Runs on every PR targeting main. Blocks merge via branch protection.
+# Separation of concerns: this gates the CODE, Jenkins gates the ARTIFACT.
+#
+# These checks are fast (<2 min), developer-facing, and decorate the PR.
+# Heavy lifting (SAST, image scan, DAST, deploy) stays in Jenkins.
+# ============================================================================
+
+name: PR Gate
+
+on:
+  pull_request:
+    branches: [main, v2]
+  push:
+    branches: [main, v2]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ── Secret Scanning ────────────────────────────────────────────────────
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Linting ────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ShellCheck — all .sh files
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./scripts ./lib
+          additional_files: ''
+          severity: warning
+
+      # Hadolint — Dockerfiles
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+
+      # YAML lint — catch broken configs before CI
+      - name: YAML lint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: |
+            docker-compose.yml
+            docker-compose.test.yml
+            otel-collector/
+            grafana/provisioning/
+          config_data: |
+            extends: default
+            rules:
+              line-length:
+                max: 200
+              truthy:
+                check-keys: false
+              comments:
+                min-spaces-from-content: 1
+
+      # Ruff — Python linting
+      - name: Ruff (Python)
+        uses: astral-sh/ruff-action@v3
+        with:
+          src: backend/
+
+  # ── Compose Validation ─────────────────────────────────────────────────
+  compose-validate:
+    name: Compose config validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Validate test override
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml config --quiet
+
+  # ── PR Hygiene ─────────────────────────────────────────────────────────
+  pr-size:
+    name: PR size check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check diff size
+        run: |
+          LINES=$(git diff --stat origin/${{ github.base_ref }}...HEAD | tail -1 | grep -oP '\d+ insertion' | grep -oP '\d+' || echo 0)
+          echo "PR adds ${LINES} lines"
+          if [ "${LINES}" -gt 1000 ]; then
+            echo "::warning::Large PR (${LINES} lines added). Consider splitting into smaller PRs for easier review."
+          fi
