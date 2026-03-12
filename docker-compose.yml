@@ -95,9 +95,9 @@ services:
       - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-http://localhost:8080}
     ports:
       - "${OTEL_GRPC_PORT:-4317}:4317"
-      - "8888:8888"
-      - "8889:8889"
-      - "13133:13133"
+      - "${OTEL_METRICS_PORT:-8888}:8888"
+      - "${OTEL_PROM_PORT:-8889}:8889"
+      - "${OTEL_HEALTH_PORT:-13133}:13133"
     depends_on:
       - tempo
       - loki
@@ -272,7 +272,7 @@ services:
     command:
       - '--nginx.scrape-uri=http://frontend:80/stub_status'
     ports:
-      - "9113:9113"
+      - "${NGINX_EXPORTER_PORT:-9113}:9113"
     depends_on:
       - frontend
     read_only: true

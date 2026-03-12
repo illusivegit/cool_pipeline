@@ -377,6 +377,8 @@ pipeline {
               OTEL_GRPC_PORT=4327 OTEL_HTTP_PORT=4328 \
               NODE_EXPORTER_PORT=9110 CADVISOR_PORT=9081 \
               TEMPO_PORT=3201 LOKI_PORT=3101 \
+              OTEL_METRICS_PORT=8898 OTEL_PROM_PORT=8899 \
+              OTEL_HEALTH_PORT=13134 NGINX_EXPORTER_PORT=9114 \
               docker compose \
                 -f docker-compose.yml \
                 -f docker-compose.test.yml \
