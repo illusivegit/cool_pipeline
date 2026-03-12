@@ -375,7 +375,7 @@ pipeline {
               BACKEND_PORT=9000 FRONTEND_PORT=9080 GRAFANA_PORT=9300 \
               PROMETHEUS_PORT=9190 ALERTMANAGER_PORT=9193 \
               OTEL_GRPC_PORT=4327 OTEL_HTTP_PORT=4328 \
-              NODE_EXPORTER_PORT=9110 \
+              NODE_EXPORTER_PORT=9110 CADVISOR_PORT=9081 \
               docker compose \
                 -f docker-compose.yml \
                 -f docker-compose.test.yml \

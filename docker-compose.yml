@@ -359,7 +359,7 @@ services:
     image: ${CADVISOR_IMAGE}
     container_name: cadvisor
     ports:
-      - "8081:8080"
+      - "${CADVISOR_PORT:-8081}:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
