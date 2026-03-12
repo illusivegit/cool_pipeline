@@ -1,0 +1,9 @@
+# Copy to .vault-env and fill in your AppRole credentials.
+# This file is sourced by the Makefile — no manual exports needed.
+#
+# Get these from your Vault administrator or generate them:
+#   vault read -field=role_id auth/approle/role/jenkins-pipeline/role-id
+#   vault write -format=json -force auth/approle/role/jenkins-pipeline/secret-id | jq -r '.data.secret_id'
+VAULT_ADDR=http://localhost:8200
+VAULT_ROLE_ID=your-role-id
+VAULT_SECRET_ID=your-secret-id

@@ -19,6 +19,7 @@ SHELL := /bin/bash
 # Load .env if present (image tags, ports, retention, project name)
 -include .env
 -include .env.secrets
+-include .vault-env
 export
 
 PROJECT  ?= lab
@@ -31,6 +32,9 @@ help: ## Show this help message
 	@echo "OpenTelemetry Observability Lab"
 	@echo ""
 	@echo "Usage: make [target]"
+	@echo ""
+	@echo "SECRETS (requires .vault-env — see .vault-env.example):"
+	@printf "  \033[36m%-25s\033[0m %s\n" "fetch-secrets" "Vault AppRole → KV read → .env.secrets"
 	@echo ""
 	@echo "DEPLOYMENT:"
 	@printf "  \033[36m%-25s\033[0m %s\n" "up"      "Build and start all services"
@@ -60,6 +64,27 @@ help: ## Show this help message
 	@echo "CLEANUP:"
 	@printf "  \033[36m%-25s\033[0m %s\n" "nuke"    "Destroy everything (containers, volumes, images, artifacts)"
 
+# ── Secrets ───────────────────────────────────────────────────────────────
+# Vault KV v2 paths to fetch. Add new paths here as the project grows.
+# All paths are merged into a single .env.secrets file.
+VAULT_KV_PATHS := \
+	secret/data/lab/alertmanager
+
+.PHONY: fetch-secrets
+
+fetch-secrets: ## Vault AppRole → KV read → .env.secrets
+	@if [ -n "$${VAULT_ROLE_ID:-}" ] && [ -n "$${VAULT_SECRET_ID:-}" ] && \
+	    curl -sf --max-time 3 "$${VAULT_ADDR:-http://127.0.0.1:8200}/v1/sys/health" >/dev/null 2>&1; then \
+		bash scripts/fetch-secrets.sh -o .env.secrets $(VAULT_KV_PATHS); \
+	elif [ -f .env.secrets ]; then \
+		echo "Vault credentials not set or Vault unreachable — using existing .env.secrets"; \
+	else \
+		echo "WARNING: No secrets available"; \
+		echo "  Option 1: cp .vault-env.example .vault-env  (fill in AppRole creds)"; \
+		echo "  Option 2: cp .env.secrets.example .env.secrets  (fill in values manually)"; \
+		exit 1; \
+	fi
+
 # ── Config Rendering ──────────────────────────────────────────────────────
 
 .PHONY: render-alertmanager
@@ -78,7 +103,7 @@ render-alertmanager:
 
 .PHONY: up down restart
 
-up: render-alertmanager ## Build and start all services
+up: fetch-secrets render-alertmanager ## Build and start all services
 	@DOCKER_BUILDKIT=1 docker compose -p $(PROJECT) up -d --build
 
 down: ## Stop all services (preserve volumes)
