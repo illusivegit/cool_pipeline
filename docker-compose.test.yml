@@ -1,0 +1,51 @@
+# docker-compose.test.yml — Ephemeral test environment overrides.
+#
+# Usage (ports passed as env vars — Compose merges multi-value fields like
+# ports, so overriding them here would ADD rather than REPLACE):
+#
+#   BACKEND_PORT=9000 FRONTEND_PORT=9080 GRAFANA_PORT=9300 \
+#   PROMETHEUS_PORT=9190 ALERTMANAGER_PORT=9193 OTEL_GRPC_PORT=4327 \
+#   OTEL_HTTP_PORT=4328 NODE_EXPORTER_PORT=9110 \
+#   BACKEND_IMAGE=localhost:5050/lab-flask-backend:<tag> \
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml \
+#     -p lab-test up -d
+#
+# This file only overrides container_name (test- prefix) so the test
+# environment can coexist with a running production stack.
+
+services:
+  prometheus:
+    container_name: test-prometheus
+
+  tempo:
+    container_name: test-tempo
+
+  loki:
+    container_name: test-loki
+
+  otel-collector:
+    container_name: test-otel-collector
+
+  alertmanager:
+    container_name: test-alertmanager
+
+  node-exporter:
+    container_name: test-node-exporter
+
+  backend:
+    container_name: test-flask-backend
+
+  frontend:
+    container_name: test-frontend
+
+  nginx-exporter:
+    container_name: test-nginx-exporter
+
+  promtail:
+    container_name: test-promtail
+
+  grafana:
+    container_name: test-grafana
+
+  cadvisor:
+    container_name: test-cadvisor

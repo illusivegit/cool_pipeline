@@ -35,11 +35,32 @@ grafana/data/
 backups/
 artifacts/state/
 
-# Secrets
-# .env.secrets
+# Secrets (fetched from Vault at runtime via: make fetch-secrets)
+.env.secrets
+
+# Vault AppRole credentials (see .vault-env.example)
+.vault-env
+
+# SonarQube scanner cache (downloaded at build time)
+.sonar-scanner/
+.scannerwork/
+
+# Trivy cache (downloaded at build time)
+.trivy/
+
+# Gitleaks cache (downloaded at build time)
+.gitleaks/
+
+# pip-audit venv (created at build time)
+.pip-audit-venv/
+
+# ZAP cache (downloaded at build time)
+.zap/
 
 # Rendered alertmanager config (contains secrets from .env.secrets)
 otel-collector/.alertmanager-rendered.yml
 
 # IMPORTANT: Private documentation archive (strategic IP protection)
 PRIVATE_DOCS_ARCHIVE/
+
+session*
