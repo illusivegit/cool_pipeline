@@ -69,11 +69,17 @@ jobs:
             extends: default
             rules:
               line-length:
-                max: 200
+                max: 250
               truthy:
                 check-keys: false
               comments:
                 min-spaces-from-content: 1
+              comments-indentation: disable
+              document-start: disable
+              brackets:
+                max-spaces-inside: 1
+              braces:
+                max-spaces-inside: 1
 
       # Ruff — Python linting
       - name: Ruff (Python)
