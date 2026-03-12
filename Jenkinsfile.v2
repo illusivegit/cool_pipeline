@@ -8,29 +8,30 @@
 //   rollback-safe  — Pattern 2: test artifact against current env, then promote
 //
 // Stage execution matrix:
-//   ┌──────────────────────┬──────┬───────────────┬───────────────┐
-//   │ Stage                │ full │ rollback-fast  │ rollback-safe │
-//   ├──────────────────────┼──────┼───────────────┼───────────────┤
-//   │ Sanity               │  ✓   │      ✓        │      ✓        │
-//   │ Docker context       │  ✓   │      ✓        │      ✓        │
-//   │ Sync repo to VM      │  ✓   │      ✓        │      ✓        │
-//   │ Lint                 │  ✓   │      ─        │      ─        │
-//   │ Secret scan          │  ✓   │      ─        │      ─        │
-//   │ SAST (SonarQube)     │  ✓   │      ─        │      ─        │
-//   │ Dependency audit     │  ✓   │      ─        │      ─        │
-//   │ Fetch secrets        │  ✓   │      ✓        │      ✓        │
-//   │ Build + Tag + Push   │  ✓   │      ─        │      ─        │
-//   │ Image scan (Trivy)   │  ✓   │      ─        │      ─        │
-//   │ Resolve tag          │  ✓   │      ✓        │      ✓        │
-//   │ Test deploy          │  ✓   │      ─        │      ✓        │
-//   │ Health (test)        │  ✓   │      ─        │      ✓        │
-//   │ DAST (ZAP)           │  ✓   │      ─        │      ✓        │
-//   │ Teardown test        │  ✓   │      ─        │      ✓        │
-//   │ Promote              │  ✓   │      ✓        │      ✓        │
-//   │ Health (prod)        │  ✓   │      ✓        │      ✓        │
-//   │ State contract       │  ✓   │      ✓        │      ✓        │
-//   │ Version validation   │  ✓   │      ✓        │      ✓        │
-//   └──────────────────────┴──────┴───────────────┴───────────────┘
+//   ┌───────────────────────────┬──────┬───────────────┬───────────────┐
+//   │ Stage                     │ full │ rollback-fast  │ rollback-safe │
+//   ├───────────────────────────┼──────┼───────────────┼───────────────┤
+//   │ Sanity                    │  ✓   │      ✓        │      ✓        │
+//   │ Docker context            │  ✓   │      ✓        │      ✓        │
+//   │ Sync repo to VM           │  ✓   │      ✓        │      ✓        │
+//   │ Lint                      │  ✓   │      ─        │      ─        │
+//   │ Secret scan               │  ✓   │      ─        │      ─        │
+//   │ SAST (SonarQube)          │  ✓   │      ─        │      ─        │
+//   │ Dependency audit          │  ✓   │      ─        │      ─        │
+//   │ Fetch secrets             │  ✓   │      ✓        │      ✓        │
+//   │ Build + Tag + Push        │  ✓   │      ─        │      ─        │
+//   │ Image scan (Trivy)        │  ✓   │      ─        │      ─        │
+//   │ Resolve tag               │  ✓   │      ✓        │      ✓        │
+//   │ Test deploy               │  ✓   │      ─        │      ✓        │
+//   │ Health (test)             │  ✓   │      ─        │      ✓        │
+//   │ Observability tests       │  ✓   │      ─        │      ✓        │
+//   │ DAST (ZAP)                │  ✓   │      ─        │      ✓        │
+//   │ Teardown test             │  ✓   │      ─        │      ✓        │
+//   │ Promote                   │  ✓   │      ✓        │      ✓        │
+//   │ Health (prod)             │  ✓   │      ✓        │      ✓        │
+//   │ State contract            │  ✓   │      ✓        │      ✓        │
+//   │ Version validation        │  ✓   │      ✓        │      ✓        │
+//   └───────────────────────────┴──────┴───────────────┴───────────────┘
 // ============================================================================
 
 pipeline {
@@ -418,6 +419,22 @@ pipeline {
               curl -sf http://localhost:9000/metrics    >/dev/null && echo 'PASS  Backend /metrics (test:9000)'
               curl -sf http://localhost:9190/-/healthy  >/dev/null && echo 'PASS  Prometheus (test:9190)'
               curl -sf http://localhost:9300/api/health >/dev/null && echo 'PASS  Grafana (test:9300)'
+            "
+          '''
+        }
+      }
+    }
+
+    stage('Observability integration tests') {
+      when { expression { params.MODE in ['full', 'rollback-safe'] } }
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            echo "Running observability integration tests against test environment..."
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              bash scripts/observability-integration-tests.sh localhost 9000 9190 3200 3100
             "
           '''
         }

@@ -49,6 +49,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "VALIDATION:"
 	@printf "  \033[36m%-25s\033[0m %s\n" "health"  "Run comprehensive health checks (29 checks)"
+	@printf "  \033[36m%-25s\033[0m %s\n" "test-observability" "Run observability integration tests (14 MELT checks)"
 	@printf "  \033[36m%-25s\033[0m %s\n" "smoke"   "Quick smoke test (3 core endpoints)"
 	@printf "  \033[36m%-25s\033[0m %s\n" "state"   "Generate post-deploy state contract artifact"
 	@printf "  \033[36m%-25s\033[0m %s\n" "validate-versions" "Compare running versions against .env"
@@ -147,10 +148,13 @@ dashboards: ## Open Grafana in default browser
 
 # ── Validation ──────────────────────────────────────────────────────────────
 
-.PHONY: health smoke state validate-versions
+.PHONY: health smoke state validate-versions test-observability
 
 health: ## Run comprehensive health checks
 	@bash scripts/health-checks.sh
+
+test-observability: ## Run observability integration tests (14 checks across MELT)
+	@bash scripts/observability-integration-tests.sh $(LAB_HOST) $(BACKEND_PORT) $(PROMETHEUS_PORT) $(TEMPO_PORT) $(LOKI_PORT)
 
 smoke: ## Quick smoke test (subset of health)
 	@echo "Smoke test — verifying core endpoints..."
