@@ -376,6 +376,7 @@ pipeline {
               PROMETHEUS_PORT=9190 ALERTMANAGER_PORT=9193 \
               OTEL_GRPC_PORT=4327 OTEL_HTTP_PORT=4328 \
               NODE_EXPORTER_PORT=9110 CADVISOR_PORT=9081 \
+              TEMPO_PORT=3201 LOKI_PORT=3101 \
               docker compose \
                 -f docker-compose.yml \
                 -f docker-compose.test.yml \
@@ -434,7 +435,7 @@ pipeline {
             echo "Running observability integration tests against test environment..."
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
-              bash scripts/observability-integration-tests.sh localhost 9000 9190 3200 3100
+              bash scripts/observability-integration-tests.sh localhost 9000 9190 3201 3101
             "
           '''
         }
