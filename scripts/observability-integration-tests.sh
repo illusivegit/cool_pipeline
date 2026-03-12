@@ -86,10 +86,13 @@ curl -sf "http://${HOST}:${BACKEND_PORT}/api/simulate-error" >/dev/null 2>&1 || 
 curl -sf "http://${HOST}:${BACKEND_PORT}/metrics" >/dev/null 2>&1 || true
 
 # Wait for telemetry to propagate through the pipeline.
-# OTel batch processor flushes every 10s, Tempo needs indexing time,
-# and Prometheus scrape interval is 15s. 20s covers the worst case.
-echo "Phase 2: Waiting 20s for telemetry propagation..."
-sleep 20
+# OTel SDK BatchSpanProcessor: schedule_delay=5s
+# OTel Collector batch processor: timeout=10s
+# Tempo WAL flush + indexing: ~5-10s
+# Prometheus scrape interval: 15s
+# Total worst case: ~30s
+echo "Phase 2: Waiting 30s for telemetry propagation..."
+sleep 30
 echo ""
 
 # ── Phase 3: Validate Metrics (Prometheus) ───────────────────────────────────
@@ -148,7 +151,7 @@ echo ""
 echo "Phase 4: Traces (Tempo)"
 
 run_test "Tempo is reachable" \
-    "curl -sf 'http://${HOST}:${TEMPO_PORT}/ready' >/dev/null"
+    "curl -sf 'http://${HOST}:${TEMPO_PORT}/api/search?limit=1' >/dev/null"
 
 run_test "Traces exist for flask-backend service" \
     "curl -sf 'http://${HOST}:${TEMPO_PORT}/api/search?q=%7Bresource.service.name%3D%22flask-backend%22%7D&limit=5' \
@@ -186,7 +189,7 @@ echo ""
 echo "Phase 5: Logs (Loki)"
 
 run_test "Loki is reachable" \
-    "curl -sf 'http://${HOST}:${LOKI_PORT}/ready' >/dev/null"
+    "curl -sf 'http://${HOST}:${LOKI_PORT}/loki/api/v1/labels' >/dev/null"
 
 # Query Loki for logs from flask-backend service
 # LogQL query: {service_name="flask-backend"} — last 5 minutes
