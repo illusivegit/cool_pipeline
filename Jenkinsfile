@@ -1,6 +1,49 @@
+// ============================================================================
+// Pipeline v2 — Build Once, Deploy Many (parameterized + rollback support)
+// ============================================================================
+//
+// Modes:
+//   full           — Normal CI/CD: commit → build → test → promote
+//   rollback-fast  — Pattern 1: redeploy a known-good registry artifact
+//   rollback-safe  — Pattern 2: test artifact against current env, then promote
+//
+// Stage execution matrix:
+//   ┌───────────────────────────┬──────┬───────────────┬───────────────┐
+//   │ Stage                     │ full │ rollback-fast  │ rollback-safe │
+//   ├───────────────────────────┼──────┼───────────────┼───────────────┤
+//   │ Sanity                    │  ✓   │      ✓        │      ✓        │
+//   │ Docker context            │  ✓   │      ✓        │      ✓        │
+//   │ Sync repo to VM           │  ✓   │      ✓        │      ✓        │
+//   │ Lint                      │  ✓   │      ─        │      ─        │
+//   │ Secret scan               │  ✓   │      ─        │      ─        │
+//   │ SAST (SonarQube)          │  ✓   │      ─        │      ─        │
+//   │ Dependency audit          │  ✓   │      ─        │      ─        │
+//   │ Fetch secrets             │  ✓   │      ✓        │      ✓        │
+//   │ Build + Tag + Push        │  ✓   │      ─        │      ─        │
+//   │ Image scan (Trivy)        │  ✓   │      ─        │      ─        │
+//   │ Resolve tag               │  ✓   │      ✓        │      ✓        │
+//   │ Test deploy               │  ✓   │      ─        │      ✓        │
+//   │ Health (test)             │  ✓   │      ─        │      ✓        │
+//   │ Observability tests       │  ✓   │      ─        │      ✓        │
+//   │ DAST (ZAP)                │  ✓   │      ─        │      ✓        │
+//   │ Teardown test             │  ✓   │      ─        │      ✓        │
+//   │ Promote                   │  ✓   │      ✓        │      ✓        │
+//   │ Health (prod)             │  ✓   │      ✓        │      ✓        │
+//   │ State contract            │  ✓   │      ✓        │      ✓        │
+//   │ Version validation        │  ✓   │      ✓        │      ✓        │
+//   └───────────────────────────┴──────┴───────────────┴───────────────┘
+// ============================================================================
+
 pipeline {
   agent { label 'agent1' }
   options { timestamps() }
+
+  parameters {
+    choice(name: 'MODE', choices: ['full', 'rollback-fast', 'rollback-safe'],
+           description: 'full = normal CI/CD | rollback-fast = redeploy artifact (Pattern 1) | rollback-safe = test then promote (Pattern 2)')
+    string(name: 'DEPLOY_TAG', defaultValue: '',
+           description: 'Registry image tag for rollback modes (e.g. abc1234). Ignored in full mode.')
+  }
 
   environment {
     VM_USER    = 'jenkins'
@@ -8,7 +51,9 @@ pipeline {
     DOCKER_CTX = 'vm-lab'
     PROJECT    = 'lab'
     VM_DIR     = '/home/jenkins/lab/app'
-    VAULT_ADDR = 'http://vault-server:8200'
+    VAULT_ADDR    = 'http://vault-server:8200'
+    VM_VAULT_ADDR = 'http://192.168.122.1:8200'
+    REGISTRY      = 'localhost:5050'
     SONAR_SCANNER_VERSION = '8.0.1.6346'
     TRIVY_VERSION = '0.69.3'
     GITLEAKS_VERSION = '8.30.0'
@@ -16,10 +61,14 @@ pipeline {
   }
 
   stages {
+
+    // ── Infrastructure ────────────────────────────────────────────────────────
+
     stage('Sanity on agent') {
       steps {
         sh '''
           set -eu
+          echo "=== Agent toolchain ==="
           which ssh
           docker --version
           docker compose version
@@ -48,14 +97,34 @@ pipeline {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
             set -eu
-            ssh ${VM_USER}@${VM_IP} "mkdir -p ${VM_DIR}"
-            rsync -az --delete ./ ${VM_USER}@${VM_IP}:${VM_DIR}/
+            REPO_URL=$(git remote get-url origin)
+            # Jenkins SCM checkout may use detached HEAD; fall back to
+            # GIT_BRANCH env var set by Jenkins Git plugin (e.g. origin/v2)
+            REPO_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            if [ "${REPO_BRANCH}" = "HEAD" ]; then
+              REPO_BRANCH=$(echo "${GIT_BRANCH:-main}" | sed 's|^origin/||')
+            fi
+
+            ssh ${VM_USER}@${VM_IP} "
+              if [ -d ${VM_DIR}/.git ]; then
+                cd ${VM_DIR} && \
+                git fetch origin && \
+                git checkout ${REPO_BRANCH} && \
+                git reset --hard origin/${REPO_BRANCH}
+              else
+                mkdir -p \$(dirname ${VM_DIR}) && \
+                git clone --branch ${REPO_BRANCH} ${REPO_URL} ${VM_DIR}
+              fi
+            "
           '''
         }
       }
     }
 
+    // ── Commit Stage (full mode only) ─────────────────────────────────────────
+
     stage('Lint') {
+      when { expression { params.MODE == 'full' } }
       steps {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
@@ -70,6 +139,7 @@ pipeline {
     }
 
     stage('Secret scan (gitleaks)') {
+      when { expression { params.MODE == 'full' } }
       steps {
         sh '''
           set -eu
@@ -92,16 +162,21 @@ pipeline {
           fi
 
           # ── Scan git history for secrets ───────────────────────
-          echo "Scanning git history for secrets..."
-          "${GITLEAKS_BIN}" git \
-            -f sarif \
-            -r "${WORKSPACE}/gitleaks-report.sarif" \
-            --no-banner
+          if [ -d ".git" ]; then
+            echo "Scanning git history for secrets..."
+            "${GITLEAKS_BIN}" git \
+              -f sarif \
+              -r "${WORKSPACE}/gitleaks-report.sarif" \
+              --no-banner
+          else
+            echo "No .git directory found — skipping gitleaks scan"
+          fi
         '''
       }
     }
 
     stage('SAST (SonarQube)') {
+      when { expression { params.MODE == 'full' } }
       steps {
         withCredentials([
           string(credentialsId: 'vault-role-id',   variable: 'VAULT_ROLE_ID'),
@@ -145,7 +220,6 @@ pipeline {
             fi
 
             # ── Run the scan ───────────────────────────────────────────
-            # sonar.login works with both SonarQube 9.x and 10+
             echo "Running SonarQube analysis..."
             "${SCANNER_BIN}" \
               -Dsonar.host.url="${SONAR_HOST_URL}" \
@@ -157,6 +231,7 @@ pipeline {
     }
 
     stage('Dependency audit (pip-audit)') {
+      when { expression { params.MODE == 'full' } }
       steps {
         sh '''
           set -eu
@@ -180,6 +255,8 @@ pipeline {
       }
     }
 
+    // ── Build Stage (full mode only) ──────────────────────────────────────────
+
     stage('Fetch secrets from Vault') {
       steps {
         sshagent(credentials: ['vm-ssh']) {
@@ -191,7 +268,7 @@ pipeline {
               set -eu
               ssh ${VM_USER}@${VM_IP} "
                 cd ${VM_DIR} && \
-                VAULT_ADDR=http://vault-server:8200 \
+                VAULT_ADDR=${VM_VAULT_ADDR} \
                 VAULT_ROLE_ID=${VAULT_ROLE_ID} \
                 VAULT_SECRET_ID=${VAULT_SECRET_ID} \
                 make fetch-secrets
@@ -202,7 +279,91 @@ pipeline {
       }
     }
 
-    stage('Build images') {
+    stage('Build + Tag + Push') {
+      when { expression { params.MODE == 'full' } }
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            GIT_SHA=$(git rev-parse --short=7 HEAD)
+
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              make render-alertmanager && \
+              DOCKER_BUILDKIT=1 docker compose -p ${PROJECT} build backend && \
+              docker tag ${PROJECT}-flask-backend:latest \
+                ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA} && \
+              docker push ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA}
+            "
+
+            # Persist tag for downstream stages
+            echo "${GIT_SHA}" > ${WORKSPACE}/.git-sha
+            echo "Built and pushed: ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA}"
+          '''
+        }
+      }
+    }
+
+    stage('Image scan (Trivy)') {
+      when { expression { params.MODE == 'full' } }
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            GIT_SHA=$(cat ${WORKSPACE}/.git-sha)
+
+            ssh ${VM_USER}@${VM_IP} "
+              TRIVY_DIR=/home/jenkins/.trivy
+              TRIVY_BIN=\\${TRIVY_DIR}/trivy
+
+              if [ ! -x \\${TRIVY_BIN} ] || \\
+                 [ \\\"\\$(\\${TRIVY_BIN} version 2>/dev/null | awk '/^Version:/{print \\$2}')\\\" != '${TRIVY_VERSION}' ]; then
+                echo 'Installing Trivy ${TRIVY_VERSION}...'
+                mkdir -p \\${TRIVY_DIR}
+                curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \\
+                  | sh -s -- -b \\${TRIVY_DIR} v${TRIVY_VERSION}
+              else
+                echo 'Using cached Trivy ${TRIVY_VERSION}'
+              fi
+
+              echo 'Scanning for CRITICAL+HIGH vulnerabilities...'
+              \\${TRIVY_BIN} image \\
+                --severity CRITICAL,HIGH --scanners vuln \\
+                ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA} || true
+
+              echo 'Gating on CRITICAL vulnerabilities...'
+              \\${TRIVY_BIN} image \\
+                --severity CRITICAL --exit-code 1 --scanners vuln --quiet \\
+                ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA}
+            "
+          '''
+        }
+      }
+    }
+
+    // ── Convergence Point ─────────────────────────────────────────────────────
+
+    stage('Resolve tag') {
+      steps {
+        script {
+          if (params.MODE == 'full') {
+            env.RELEASE_TAG = readFile("${WORKSPACE}/.git-sha").trim()
+          } else {
+            if (!params.DEPLOY_TAG?.trim()) {
+              error("DEPLOY_TAG is required for rollback modes (e.g. abc1234)")
+            }
+            env.RELEASE_TAG = params.DEPLOY_TAG.trim()
+          }
+          echo "Release tag resolved: ${env.RELEASE_TAG}"
+          echo "Image: ${env.REGISTRY}/${env.PROJECT}-flask-backend:${env.RELEASE_TAG}"
+        }
+      }
+    }
+
+    // ── Test Stage (full + rollback-safe) ─────────────────────────────────────
+
+    stage('Test deploy') {
+      when { expression { params.MODE in ['full', 'rollback-safe'] } }
       steps {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
@@ -210,87 +371,70 @@ pipeline {
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
               make render-alertmanager && \
-              DOCKER_BUILDKIT=1 docker compose -p ${PROJECT} build
+              BACKEND_IMAGE=${REGISTRY}/${PROJECT}-flask-backend:${RELEASE_TAG} \
+              BACKEND_PORT=9000 FRONTEND_PORT=9080 GRAFANA_PORT=9300 \
+              PROMETHEUS_PORT=9190 ALERTMANAGER_PORT=9193 \
+              OTEL_GRPC_PORT=4327 OTEL_HTTP_PORT=4328 \
+              NODE_EXPORTER_PORT=9110 \
+              docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.test.yml \
+                -p ${PROJECT}-test up -d
             "
           '''
         }
       }
     }
 
-    stage('Image scan (Trivy)') {
-      steps {
-        sh '''
-          set -eu
-
-          # ── Install Trivy if not cached ──────────────────────
-          TRIVY_DIR="${WORKSPACE}/.trivy"
-          TRIVY_BIN="${TRIVY_DIR}/trivy"
-
-          if [ ! -x "${TRIVY_BIN}" ] || \
-             [ "$(${TRIVY_BIN} version 2>/dev/null | awk '/^Version:/{print $2}')" != "${TRIVY_VERSION}" ]; then
-            echo "Installing Trivy ${TRIVY_VERSION}..."
-            mkdir -p "${TRIVY_DIR}"
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-              | sh -s -- -b "${TRIVY_DIR}" v${TRIVY_VERSION}
-          else
-            echo "Using cached Trivy ${TRIVY_VERSION}"
-          fi
-
-          # ── Scan via agent's local Docker daemon ─────────────
-          # Report HIGH + CRITICAL (informational)
-          echo "Scanning built images for vulnerabilities..."
-          "${TRIVY_BIN}" image \
-            --severity CRITICAL,HIGH \
-            --scanners vuln \
-            ${PROJECT}-flask-backend:latest || true
-
-          # Gate on CRITICAL only (pipeline fails)
-          "${TRIVY_BIN}" image \
-            --severity CRITICAL \
-            --exit-code 1 \
-            --scanners vuln \
-            --quiet \
-            ${PROJECT}-flask-backend:latest
-        '''
-      }
-    }
-
-    stage('Deploy') {
+    stage('Health checks (test)') {
+      when { expression { params.MODE in ['full', 'rollback-safe'] } }
       steps {
         sshagent(credentials: ['vm-ssh']) {
           sh '''
             set -eu
-            ssh ${VM_USER}@${VM_IP} "
-              cd ${VM_DIR} && \
-              docker compose -p ${PROJECT} up -d
-            "
-          '''
-        }
-      }
-    }
-
-    stage('Health checks') {
-      steps {
-        sshagent(credentials: ['vm-ssh']) {
-          sh '''
-            set -eu
-            echo "Waiting for Tempo and Loki readiness (up to 3 minutes)..."
+            echo "Waiting for test environment readiness (up to 3 minutes)..."
             for i in $(seq 1 18); do
               ready=$(ssh ${VM_USER}@${VM_IP} "
-                curl -sf http://localhost:3200/ready >/dev/null 2>&1 && \
-                curl -sf http://localhost:3100/ready >/dev/null 2>&1 && \
+                curl -sf http://localhost:9080/ >/dev/null 2>&1 && \
+                curl -sf http://localhost:9000/health >/dev/null 2>&1 && \
                 echo READY || echo WAIT
               ")
               if [ "$ready" = "READY" ]; then
-                echo "All services ready after $((i*10)) seconds."
+                echo "Test environment ready after $((i*10)) seconds."
                 break
+              fi
+              if [ "$i" -eq 18 ]; then
+                echo "ERROR: Test environment did not become ready in 180s"
+                exit 1
               fi
               echo "  Not ready yet (attempt $i/18)..."
               sleep 10
             done
+
+            # Extended endpoint verification on test ports
+            echo "Running test environment endpoint checks..."
+            ssh ${VM_USER}@${VM_IP} "
+              curl -sf http://localhost:9080/           >/dev/null && echo 'PASS  Frontend (test:9080)'
+              curl -sf http://localhost:9000/health     >/dev/null && echo 'PASS  Backend /health (test:9000)'
+              curl -sf http://localhost:9000/metrics    >/dev/null && echo 'PASS  Backend /metrics (test:9000)'
+              curl -sf http://localhost:9190/-/healthy  >/dev/null && echo 'PASS  Prometheus (test:9190)'
+              curl -sf http://localhost:9300/api/health >/dev/null && echo 'PASS  Grafana (test:9300)'
+            "
+          '''
+        }
+      }
+    }
+
+    stage('Observability integration tests') {
+      when { expression { params.MODE in ['full', 'rollback-safe'] } }
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            echo "Running observability integration tests against test environment..."
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
-              LAB_HOST=${VM_IP} make health
+              bash scripts/observability-integration-tests.sh localhost 9000 9190 3200 3100
             "
           '''
         }
@@ -298,6 +442,7 @@ pipeline {
     }
 
     stage('DAST (OWASP ZAP)') {
+      when { expression { params.MODE in ['full', 'rollback-safe'] } }
       steps {
         sh '''
           set -eu
@@ -320,7 +465,7 @@ pipeline {
             echo "Using cached ZAP ${ZAP_VERSION}"
           fi
 
-          # ── Write automation plan ──────────────────────────────
+          # ── Write automation plan (targets TEST environment) ───
           mkdir -p "${ZAP_REPORTS}"
 
           cat > "${ZAP_REPORTS}/zap-baseline-plan.yaml" << ZAPPLAN
@@ -329,7 +474,7 @@ env:
   contexts:
     - name: baseline
       urls:
-        - http://${VM_IP}:8080
+        - http://${VM_IP}:9080
   parameters:
     failOnError: true
     failOnWarning: false
@@ -366,11 +511,79 @@ jobs:
     parameters: {}
 ZAPPLAN
 
-          # ── Run ZAP baseline scan ─────────────────────────────
-          echo "Running OWASP ZAP baseline scan..."
+          # ── Run ZAP baseline scan against TEST environment ─────
+          echo "Running OWASP ZAP baseline scan against test environment..."
           "${ZAP_HOME}/zap.sh" -cmd \
             -autorun "${ZAP_REPORTS}/zap-baseline-plan.yaml"
         '''
+      }
+    }
+
+    stage('Teardown test') {
+      when { expression { params.MODE in ['full', 'rollback-safe'] } }
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            echo "Tearing down test environment..."
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.test.yml \
+                -p ${PROJECT}-test down -v --remove-orphans
+            "
+            echo "Test environment torn down."
+          '''
+        }
+      }
+    }
+
+    // ── Promote Stage (all modes) ─────────────────────────────────────────────
+
+    stage('Promote') {
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            echo "Promoting ${RELEASE_TAG} to production..."
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              make render-alertmanager && \
+              BACKEND_IMAGE=${REGISTRY}/${PROJECT}-flask-backend:${RELEASE_TAG} \
+              docker compose -p ${PROJECT} up -d
+            "
+            echo "Production deploy complete."
+          '''
+        }
+      }
+    }
+
+    stage('Health checks (prod)') {
+      steps {
+        sshagent(credentials: ['vm-ssh']) {
+          sh '''
+            set -eu
+            echo "Waiting for Tempo and Loki readiness (up to 3 minutes)..."
+            for i in $(seq 1 18); do
+              ready=$(ssh ${VM_USER}@${VM_IP} "
+                curl -sf http://localhost:3200/ready >/dev/null 2>&1 && \
+                curl -sf http://localhost:3100/ready >/dev/null 2>&1 && \
+                echo READY || echo WAIT
+              ")
+              if [ "$ready" = "READY" ]; then
+                echo "All services ready after $((i*10)) seconds."
+                break
+              fi
+              echo "  Not ready yet (attempt $i/18)..."
+              sleep 10
+            done
+            ssh ${VM_USER}@${VM_IP} "
+              cd ${VM_DIR} && \
+              LAB_HOST=${VM_IP} make health
+            "
+          '''
+        }
       }
     }
 
@@ -403,7 +616,20 @@ ZAPPLAN
     }
   }
 
+  // ── Post Actions ────────────────────────────────────────────────────────────
+
   post {
+    always {
+      sshagent(credentials: ['vm-ssh']) {
+        sh '''
+          ssh ${VM_USER}@${VM_IP} "
+            cd ${VM_DIR} && \
+            docker compose -f docker-compose.yml -f docker-compose.test.yml \
+              -p ${PROJECT}-test down -v --remove-orphans 2>/dev/null || true
+          " || true
+        '''
+      }
+    }
     failure {
       sshagent(credentials: ['vm-ssh']) {
         sh '''

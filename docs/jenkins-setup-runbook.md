@@ -79,7 +79,7 @@ The remaining 42 plugins (Ant, Maven, LDAP, ClearCase, etc.) are irrelevant. Ins
 
 ### Problem: Dockerfile only installed jq
 
-The original Dockerfile installed `jq` but the image was named `jenkins-inbound-agent-with-jq-docker-rsync`. The Jenkinsfile's "Sanity on agent" stage checks for `docker`, `docker compose`, `rsync`, and `ssh` — all missing.
+The original Dockerfile installed `jq` but the image was named `jenkins-inbound-agent1`. The Jenkinsfile's "Sanity on agent" stage checks for `docker`, `docker compose`, `rsync`, and `ssh` — all missing.
 
 ### Problem: Using `latest` tag
 
@@ -87,7 +87,7 @@ The original Dockerfile installed `jq` but the image was named `jenkins-inbound-
 
 ### Fixed Dockerfile
 
-File: `jenkins/jenkins-inbound-agent-with-jq-docker-rsync`
+File: `jenkins/jenkins-inbound-agent1`
 
 ```dockerfile
 FROM jenkins/inbound-agent:3355.v388858a_47b_33-15-jdk21
@@ -124,14 +124,14 @@ Key decisions:
 The file is a Dockerfile, not a directory. Use `-f`:
 
 ```bash
-docker build -t jenkins-inbound-agent-with-jq-docker-rsync \
-  -f jenkins/jenkins-inbound-agent-with-jq-docker-rsync jenkins/
+docker build -t jenkins-inbound-agent1 \
+  -f jenkins/jenkins-inbound-agent1 jenkins/
 ```
 
 **Wrong** (treats the file as a build context directory):
 ```bash
-docker build -t jenkins-inbound-agent-with-jq-docker-rsync \
-  jenkins/jenkins-inbound-agent-with-jq-docker-rsync
+docker build -t jenkins-inbound-agent1 \
+  jenkins/jenkins-inbound-agent1
 # ERROR: unable to prepare context: path "..." not found
 ```
 
@@ -169,7 +169,7 @@ docker restart jenkins-agent
 ### Working agent launch command
 
 ```bash
-docker run -d --name jenkins-agent --init --restart=on-failure --network jenkins-network jenkins-inbound-agent-with-jq-docker-rsync -url http://jenkins-controller:8080 -secret <SECRET> -name agent1
+docker run -d --name jenkins-agent --init --restart=on-failure --network jenkins-network jenkins-inbound-agent1 -url http://jenkins-controller:8080 -secret <SECRET> -name agent1
 ```
 
 Put it on one line to avoid trailing-space-after-backslash problems (see below).

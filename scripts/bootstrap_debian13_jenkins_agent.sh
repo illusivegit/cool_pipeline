@@ -8,11 +8,11 @@
 #
 # Architecture:
 #   The Jenkins agent runs as a Docker container on the CI host (built from
-#   jenkins/jenkins-inbound-agent-with-jq-docker-rsync). It SSHs into THIS VM
-#   as the 'jenkins' user, rsyncs the repo, and runs Makefile targets to bring
-#   up the application stack via docker compose.
+#   jenkins/jenkins-inbound-agent1). It SSHs into THIS VM
+#   as the 'jenkins' user, clones the repo via git, and runs Makefile targets
+#   to bring up the application stack via docker compose.
 #
-#   ┌──────────────────────┐  SSH + rsync   ┌──────────────────────────┐
+#   ┌──────────────────────┐  SSH + git     ┌──────────────────────────┐
 #   │  CI Host             │ ────────────►  │  This VM (deploy target) │
 #   │  Jenkins controller  │                │                          │
 #   │  Jenkins agent       │  docker ctx    │  jenkins user            │
@@ -21,7 +21,7 @@
 #
 # What it installs (only what the pipeline needs on this VM):
 #   - make               (Makefile targets: make up, make health, make state)
-#   - rsync              (receives files from agent: rsync -az --delete)
+#   - git                (pipeline clones repo via SSH)
 #   - curl               (health-check scripts)
 #   - ca-certificates    (TLS certificate chain verification)
 #   - unattended-upgrades (automatic security patches)
@@ -38,7 +38,7 @@
 # What it does NOT install (runs on the CI host agent container, not here):
 #   - Java (agent container has its own JRE)
 #   - jq (agent container installs it)
-#   - git (pipeline uses rsync to sync, not git clone on this VM)
+#   - jq (agent container installs it, not needed on VM)
 #
 # Assumptions:
 #   - Running on Debian 13 (trixie) with systemd
@@ -148,10 +148,11 @@ install_packages() {
     #
     #   make             Makefile targets (make up, make health, make state, ...)
     #
-    #   rsync            Receives files from the Jenkins agent container
-    #                    (Jenkinsfile: rsync -az --delete ./ jenkins@VM:VM_DIR/)
+    #   git              Pipeline clones/fetches repo via SSH
     #
     #   curl             Health-check scripts (curl -s http://localhost:...)
+    #
+    #   python3          Observability integration tests use python3 -c for JSON parsing
     #
     #   ca-certificates  TLS certificate chain (Docker Hub pulls, apt https)
     #
@@ -159,12 +160,13 @@ install_packages() {
     #                    Automatic security patching
     #
     # NOT installed (lives in the Jenkins agent container on the CI host):
-    #   git, jq, java, openssh-client, docker-cli, docker-compose-plugin
+    #   jq, java, openssh-client, docker-cli, docker-compose-plugin
 
     local -a required_pkgs=(
         make
-        rsync
+        git
         curl
+        python3
         ca-certificates
         unattended-upgrades
         apt-listchanges
@@ -407,7 +409,7 @@ verify_setup() {
     printf '  %-20s %s\n' "docker:"         "$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 'ERROR')"
     printf '  %-20s %s\n' "docker compose:" "$(docker compose version --short 2>/dev/null || echo 'ERROR')"
     printf '  %-20s %s\n' "make:"           "$(make --version 2>/dev/null | head -1 | awk '{print $NF}')"
-    printf '  %-20s %s\n' "rsync:"          "$(rsync --version 2>/dev/null | head -1 | awk '/version/{print $3}')"
+    printf '  %-20s %s\n' "git:"            "$(git --version 2>/dev/null | awk '{print $3}' || echo 'ERROR')"
     printf '  %-20s %s\n' "curl:"           "$(curl --version 2>/dev/null | head -1 | awk '{print $2}' || echo 'ERROR')"
 
     echo ""
