@@ -52,8 +52,8 @@ pipeline {
     PROJECT    = 'lab'
     VM_DIR     = '/home/jenkins/lab/app'
     VAULT_ADDR    = 'http://vault-server:8200'
-    VM_VAULT_ADDR = 'http://192.168.122.1:8200'
-    REGISTRY      = 'localhost:5050'
+    VM_VAULT_ADDR = 'http://192.168.122.1:8200' // The VMs libvirt/QEMU-KVM default NAT gateway to the local hosts Vault Server
+    REGISTRY      = '192.168.122.1:5050'
     SONAR_SCANNER_VERSION = '8.0.1.6346'
     TRIVY_VERSION = '0.69.3'
     GITLEAKS_VERSION = '8.30.0'
@@ -126,15 +126,11 @@ pipeline {
     stage('Lint') {
       when { expression { params.MODE == 'full' } }
       steps {
-        sshagent(credentials: ['vm-ssh']) {
-          sh '''
-            set -eu
-            ssh ${VM_USER}@${VM_IP} "
-              cd ${VM_DIR} && \
-              find lib/ scripts/ -name '*.sh' -exec shellcheck -x {} + 2>/dev/null || echo 'shellcheck not installed — skipping'
-            "
-          '''
-        }
+        sh '''
+          set -eu
+          echo "Linting shell scripts in workspace..."
+          find lib/ scripts/ -name '*.sh' -exec shellcheck -x {} +
+        '''
       }
     }
 

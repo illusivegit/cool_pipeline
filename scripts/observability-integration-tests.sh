@@ -90,9 +90,28 @@ curl -sf "http://${HOST}:${BACKEND_PORT}/metrics" >/dev/null 2>&1 || true
 # OTel Collector batch processor: timeout=10s
 # Tempo WAL flush + indexing: ~5-10s
 # Prometheus scrape interval: 15s
-# Total worst case: ~30s
-echo "Phase 2: Waiting 30s for telemetry propagation..."
-sleep 30
+# Total worst case: ~30-40s
+#
+# Poll Prometheus for http_requests_total (fastest signal) instead of blind sleep.
+echo "Phase 2: Waiting for telemetry propagation (up to 60s)..."
+for i in $(seq 1 12); do
+    if curl -sf "http://${HOST}:${PROMETHEUS_PORT}/api/v1/query?query=http_requests_total" \
+        | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data['data']['result']
+assert len(results) > 0
+" 2>/dev/null; then
+        echo "  Telemetry detected after $((i * 5))s"
+        # Give Tempo/Loki a few extra seconds to flush after Prometheus has data
+        sleep 5
+        break
+    fi
+    if [ "$i" -eq 12 ]; then
+        echo "  WARNING: No metrics detected after 60s — proceeding anyway"
+    fi
+    sleep 5
+done
 echo ""
 
 # ── Phase 3: Validate Metrics (Prometheus) ───────────────────────────────────
