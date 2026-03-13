@@ -92,11 +92,14 @@ curl -sf "http://${HOST}:${BACKEND_PORT}/metrics" >/dev/null 2>&1 || true
 # Prometheus scrape interval: 15s
 # Total worst case: ~30-40s
 #
-# Poll Prometheus for db_query_duration_seconds_count instead of blind sleep.
-# This metric only appears after Phase 1's API calls (POST/GET tasks) are scraped,
-# avoiding false-early exit from health check traffic that populates http_requests_total.
+# Two-phase poll: first Prometheus (metrics pipeline), then Tempo (trace pipeline).
+# Prometheus poll uses db_query_duration_seconds_count (only appears after Phase 1's
+# API calls are scraped, avoiding false-early exit from health check traffic).
+# Tempo poll uses span name search (requires full WAL flush + indexing).
 echo "Phase 2: Waiting for telemetry propagation (up to 90s)..."
-for i in $(seq 1 18); do
+
+# 2a: Wait for Prometheus to scrape Phase 1 traffic
+for i in $(seq 1 12); do
     if curl -sf "http://${HOST}:${PROMETHEUS_PORT}/api/v1/query?query=db_query_duration_seconds_count" \
         | python3 -c "
 import sys, json
@@ -104,13 +107,29 @@ data = json.load(sys.stdin)
 results = data['data']['result']
 assert len(results) > 0
 " 2>/dev/null; then
-        echo "  Telemetry detected after $((i * 5))s"
-        # Give Tempo/Loki extra time to flush after Prometheus has data
-        sleep 10
+        echo "  Metrics ready after $((i * 5))s"
         break
     fi
-    if [ "$i" -eq 18 ]; then
-        echo "  WARNING: No metrics detected after 90s — proceeding anyway"
+    if [ "$i" -eq 12 ]; then
+        echo "  WARNING: No metrics after 60s — proceeding anyway"
+    fi
+    sleep 5
+done
+
+# 2b: Wait for Tempo to index span names
+for i in $(seq 1 6); do
+    if curl -sf "http://${HOST}:${TEMPO_PORT}/api/search?q=%7Bresource.service.name%3D%22flask-backend%22%7D&limit=1" \
+        | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+traces = data.get('traces', [])
+assert len(traces) > 0
+" 2>/dev/null; then
+        echo "  Traces indexed after additional $((i * 5))s"
+        break
+    fi
+    if [ "$i" -eq 6 ]; then
+        echo "  WARNING: No traces after 30s — proceeding anyway"
     fi
     sleep 5
 done
