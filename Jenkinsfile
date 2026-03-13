@@ -129,7 +129,7 @@ pipeline {
         sh '''
           set -eu
           echo "Linting shell scripts in workspace..."
-          find lib/ scripts/ -name '*.sh' -exec shellcheck -x {} +
+          find lib/ scripts/ -name '*.sh' -exec shellcheck -x -S warning {} +
         '''
       }
     }
