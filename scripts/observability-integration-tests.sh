@@ -116,9 +116,12 @@ assert len(results) > 0
     sleep 5
 done
 
-# 2b: Wait for Tempo to index span names
+# 2b: Wait for Tempo to index span-level attributes (not just resource-level).
+# Polls for {name="create_task"} — the exact query the test assertions use.
+# Resource-level search ({resource.service.name=...}) is available earlier but
+# span-level attribute indexing takes longer on cold start.
 for i in $(seq 1 6); do
-    if curl -sf "http://${HOST}:${TEMPO_PORT}/api/search?q=%7Bresource.service.name%3D%22flask-backend%22%7D&limit=1" \
+    if curl -sf "http://${HOST}:${TEMPO_PORT}/api/search?q=%7Bname%3D%22create_task%22%7D&limit=1" \
         | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
@@ -129,7 +132,7 @@ assert len(traces) > 0
         break
     fi
     if [ "$i" -eq 6 ]; then
-        echo "  WARNING: No traces after 30s — proceeding anyway"
+        echo "  WARNING: No span-level traces after 30s — proceeding anyway"
     fi
     sleep 5
 done
