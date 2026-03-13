@@ -9,7 +9,7 @@
 #   OTEL_METRICS_PORT=8898 OTEL_PROM_PORT=8899 OTEL_HEALTH_PORT=13134 \
 #   NODE_EXPORTER_PORT=9110 CADVISOR_PORT=9081 NGINX_EXPORTER_PORT=9114 \
 #   TEMPO_PORT=3201 LOKI_PORT=3101 \
-#   BACKEND_IMAGE=<registry>/lab-flask-backend:<tag> \
+#   BACKEND_IMAGE=bleeng089/cool_images:<tag> \
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml \
 #     -p lab-test up -d
 #

@@ -53,7 +53,7 @@ pipeline {
     VM_DIR     = '/home/jenkins/lab/app'
     VAULT_ADDR    = 'http://vault-server:8200'
     VM_VAULT_ADDR = 'http://192.168.122.1:8200' // The VMs libvirt/QEMU-KVM default NAT gateway to the local hosts Vault Server
-    REGISTRY      = '192.168.122.1:5050'
+    REGISTRY_IMAGE = 'bleeng089/cool_images'
     SONAR_SCANNER_VERSION = '8.0.1.6346'
     TRIVY_VERSION = '0.69.3'
     GITLEAKS_VERSION = '8.30.0'
@@ -288,13 +288,13 @@ pipeline {
               make render-alertmanager && \
               DOCKER_BUILDKIT=1 docker compose -p ${PROJECT} build backend && \
               docker tag ${PROJECT}-flask-backend:latest \
-                ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA} && \
-              docker push ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA}
+                ${REGISTRY_IMAGE}:${GIT_SHA} && \
+              docker push ${REGISTRY_IMAGE}:${GIT_SHA}
             "
 
             # Persist tag for downstream stages
             echo "${GIT_SHA}" > ${WORKSPACE}/.git-sha
-            echo "Built and pushed: ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA}"
+            echo "Built and pushed: ${REGISTRY_IMAGE}:${GIT_SHA}"
           '''
         }
       }
@@ -325,12 +325,12 @@ pipeline {
               echo 'Scanning for CRITICAL+HIGH vulnerabilities...'
               \\${TRIVY_BIN} image \\
                 --severity CRITICAL,HIGH --scanners vuln \\
-                ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA} || true
+                ${REGISTRY_IMAGE}:${GIT_SHA} || true
 
               echo 'Gating on CRITICAL vulnerabilities...'
               \\${TRIVY_BIN} image \\
                 --severity CRITICAL --exit-code 1 --scanners vuln --quiet \\
-                ${REGISTRY}/${PROJECT}-flask-backend:${GIT_SHA}
+                ${REGISTRY_IMAGE}:${GIT_SHA}
             "
           '''
         }
@@ -351,7 +351,7 @@ pipeline {
             env.RELEASE_TAG = params.DEPLOY_TAG.trim()
           }
           echo "Release tag resolved: ${env.RELEASE_TAG}"
-          echo "Image: ${env.REGISTRY}/${env.PROJECT}-flask-backend:${env.RELEASE_TAG}"
+          echo "Image: ${env.REGISTRY_IMAGE}:${env.RELEASE_TAG}"
         }
       }
     }
@@ -367,7 +367,7 @@ pipeline {
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
               make render-alertmanager && \
-              BACKEND_IMAGE=${REGISTRY}/${PROJECT}-flask-backend:${RELEASE_TAG} \
+              BACKEND_IMAGE=${REGISTRY_IMAGE}:${RELEASE_TAG} \
               BACKEND_PORT=9000 FRONTEND_PORT=9080 GRAFANA_PORT=9300 \
               PROMETHEUS_PORT=9190 ALERTMANAGER_PORT=9193 \
               OTEL_GRPC_PORT=4327 OTEL_HTTP_PORT=4328 \
@@ -549,7 +549,7 @@ ZAPPLAN
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
               make render-alertmanager && \
-              BACKEND_IMAGE=${REGISTRY}/${PROJECT}-flask-backend:${RELEASE_TAG} \
+              BACKEND_IMAGE=${REGISTRY_IMAGE}:${RELEASE_TAG} \
               docker compose -p ${PROJECT} up -d
             "
             echo "Production deploy complete."

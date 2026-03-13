@@ -21,7 +21,7 @@
 | Jenkins Controller | Docker container | Pipeline orchestration |
 | Jenkins Inbound Agent | Docker container (`jenkins-inbound-agent1`) | Build execution |
 | HashiCorp Vault | VM or host | Secret management |
-| Docker Registry | VM (`:5050`) | Immutable artifact storage |
+| Docker Hub | `bleeng089/cool_images` | Immutable artifact storage |
 
 ---
 
@@ -130,6 +130,7 @@ Packages installed and why:
 | `git` | SCM operations on agent |
 | `nodejs` | sonar-scanner JS analysis sensor |
 | `python3`, `python3-venv` | pip-audit SCA stage (venv isolation) |
+| `shellcheck` | Lint stage (shell script analysis) |
 | `unzip` | sonar-scanner CLI extraction |
 | `docker-ce-cli` | Remote Docker context (CLI only, no daemon) |
 | `docker-compose-plugin` | `docker compose` v2 |
@@ -164,6 +165,21 @@ Put the command on one line or be paranoid about trailing spaces after `\`. Bash
 - **Node label** (`agent1`): must match `agent { label '...' }` in Jenkinsfile
 - **Remote root directory** (`/home/jenkins/agent`): must be writable by the `jenkins` user inside the container (home: `/home/jenkins`)
 - After changing node config, you must **disconnect the agent and restart the container**. Config is cached at connect time.
+
+### Docker Hub Registry
+
+Build artifacts are pushed to Docker Hub as `bleeng089/cool_images:<git-sha>`.
+
+**Authentication:** The `jenkins` user on the VM must be logged in to Docker Hub. Credentials are stored in `/home/jenkins/.docker/config.json`. If missing, copy from root's config or run `docker login` as jenkins.
+
+**Jenkinsfile:** The `REGISTRY_IMAGE` environment variable is set to `bleeng089/cool_images`. All docker tag/push/pull operations run on the VM via SSH.
+
+**Listing tags:**
+```bash
+curl -sf "https://hub.docker.com/v2/repositories/bleeng089/cool_images/tags?page_size=25" | jq '.results[].name'
+```
+
+Each tag is a 7-character git SHA. Cross-reference with `git log --oneline`.
 
 ### Jenkins Job Configuration
 
@@ -210,8 +226,8 @@ curl -X POST "http://localhost:8080/job/Pipeline-v2-Test/buildWithParameters?MOD
 ### Finding Available Tags for Rollback
 
 ```bash
-# List registry tags (registry runs on localhost)
-curl -sf http://localhost:5050/v2/lab-flask-backend/tags/list | jq
+# List Docker Hub tags
+curl -sf "https://hub.docker.com/v2/repositories/bleeng089/cool_images/tags?page_size=25" | jq '.results[].name'
 ```
 
 Each tag is a git SHA. Cross-reference with `git log --oneline` to find the commit.
@@ -251,11 +267,15 @@ If you see `Bind for 0.0.0.0:XXXX failed: port is already allocated`:
 
 ### Observability Tests Fail
 
-The tests have a 30-second propagation wait for telemetry to flow through the pipeline. If tests fail intermittently:
+The tests use a two-phase poll (up to 90s) instead of a blind sleep:
+- **Phase 2a:** Polls Prometheus for `db_query_duration_seconds_count` every 5s (up to 60s). This metric only appears after the test's API calls are scraped — avoids false-early exit from health check traffic.
+- **Phase 2b:** Polls Tempo for `{name="create_task"}` span every 5s (up to 30s). Checks span-level index, not resource-level (which indexes faster but doesn't guarantee span searches work).
 
-1. **"No traces found"** -- Tempo WAL recovery is slow on cold start. Wait 60s and retry: `make test-observability`
+If tests fail intermittently:
+
+1. **"No traces found"** -- Tempo span-level indexing is slow on cold start (~20-30s). The two-phase poll should handle this, but if it persists, retry: `make test-observability`
 2. **"Tempo/Loki is reachable" fails but queries pass** -- The tests use query APIs (not `/ready`) for reachability because `/ready` returns 503 during WAL recovery even when queries work
-3. **"No http_requests_total samples"** -- Prometheus scrape hasn't happened yet. Default scrape interval is 15s.
+3. **"No db_query_duration samples"** -- Prometheus scrape hasn't happened yet. Default scrape interval is 15s. The poll retries for up to 60s.
 
 ### Jenkins Build Fails
 

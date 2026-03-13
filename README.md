@@ -261,10 +261,10 @@ Version validation            Y         Y              Y
 
 The pipeline builds once and deploys everywhere:
 
-1. `Build + Tag + Push` creates `<registry>/lab-flask-backend:<git-sha>`
+1. `Build + Tag + Push` creates `bleeng089/cool_images:<git-sha>` on Docker Hub
 2. The same image deploys to the test environment
 3. If all gates pass, the same image promotes to production
-4. Rollback modes reference a previous `<git-sha>` tag from the registry
+4. Rollback modes reference a previous `<git-sha>` tag from Docker Hub
 
 ---
 
@@ -276,7 +276,7 @@ Secrets are managed through HashiCorp Vault with AppRole authentication:
 Vault KV v2
   secret/data/lab/alertmanager    -> SMTP credentials
   secret/data/lab/sonarqube       -> SONAR_TOKEN, SONAR_HOST_URL
-  secret/data/lab/registry        -> Docker registry credentials
+  secret/data/lab/registry        -> Docker Hub credentials
 ```
 
 The `scripts/fetch-secrets.sh` script authenticates via AppRole, reads KV paths, and writes `.env.secrets` (mode 0600, gitignored). The Makefile sources these before `docker compose up`.
