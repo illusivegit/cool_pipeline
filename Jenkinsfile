@@ -396,6 +396,7 @@ pipeline {
               ready=$(ssh ${VM_USER}@${VM_IP} "
                 curl -sf http://localhost:9080/ >/dev/null 2>&1 && \
                 curl -sf http://localhost:9000/health >/dev/null 2>&1 && \
+                curl -sf http://localhost:9300/api/health >/dev/null 2>&1 && \
                 echo READY || echo WAIT
               ")
               if [ "$ready" = "READY" ]; then
