@@ -267,7 +267,7 @@ pipeline {
                 VAULT_ADDR=${VM_VAULT_ADDR} \
                 VAULT_ROLE_ID=${VAULT_ROLE_ID} \
                 VAULT_SECRET_ID=${VAULT_SECRET_ID} \
-                make fetch-secrets
+                make secrets
               "
             '''
           }
@@ -285,7 +285,6 @@ pipeline {
 
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
-              make render-alertmanager && \
               DOCKER_BUILDKIT=1 docker compose -p ${PROJECT} build backend && \
               docker tag ${PROJECT}-flask-backend:latest \
                 ${REGISTRY_IMAGE}:${GIT_SHA} && \
@@ -366,7 +365,6 @@ pipeline {
             set -eu
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
-              make render-alertmanager && \
               BACKEND_IMAGE=${REGISTRY_IMAGE}:${RELEASE_TAG} \
               BACKEND_PORT=9000 FRONTEND_PORT=9080 GRAFANA_PORT=9300 \
               PROMETHEUS_PORT=9190 ALERTMANAGER_PORT=9193 \
@@ -549,7 +547,6 @@ ZAPPLAN
             echo "Promoting ${RELEASE_TAG} to production..."
             ssh ${VM_USER}@${VM_IP} "
               cd ${VM_DIR} && \
-              make render-alertmanager && \
               BACKEND_IMAGE=${REGISTRY_IMAGE}:${RELEASE_TAG} \
               docker compose -p ${PROJECT} up -d
             "
