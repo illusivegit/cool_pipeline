@@ -191,7 +191,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{id=~\"/docker.*\"}[5m])) by (id) * 100",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{id=~\".*docker[-/][0-9a-f]{12}.*\"}[5m])) by (id) * 100",
           "legendFormat": "{{id}}"
         }
       ],
@@ -231,7 +231,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_memory_usage_bytes{id=~\"/docker.*\"}",
+          "expr": "container_memory_usage_bytes{id=~\".*docker[-/][0-9a-f]{12}.*\"}",
           "legendFormat": "{{id}}"
         }
       ],
@@ -271,7 +271,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_memory_usage_bytes{id=~\"/docker.*\"} / container_spec_memory_limit_bytes{id=~\"/docker.*\"} * 100",
+          "expr": "container_memory_usage_bytes{id=~\".*docker[-/][0-9a-f]{12}.*\"} / container_spec_memory_limit_bytes{id=~\".*docker[-/][0-9a-f]{12}.*\"} * 100",
           "legendFormat": "{{id}}"
         }
       ],
@@ -398,7 +398,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_memory_usage_bytes{id=\"/docker\"}",
+          "expr": "sum(container_memory_usage_bytes{id=~\".*docker[-/][0-9a-f]{12}.*\"})",
           "legendFormat": "Docker total"
         }
       ],

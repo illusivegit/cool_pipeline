@@ -17,7 +17,6 @@
 #   bash scripts/fetch-secrets.sh -o .env.secrets \
 #       secret/data/lab/alertmanager \
 #       secret/data/lab/sonarqube \
-#       secret/data/lab/registry
 #
 # All KV paths are fetched, merged, and written as KEY=value lines.
 # Duplicate keys across paths: last path wins (intentional — allows overrides).

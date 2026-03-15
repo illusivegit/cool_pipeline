@@ -73,7 +73,8 @@ scrape_configs:
       - source_labels: [__name__]
         regex: container_(cpu_usage_seconds_total|memory_usage_bytes|memory_working_set_bytes|spec_memory_limit_bytes|network_receive_bytes_total|network_transmit_bytes_total|fs_usage_bytes|fs_limit_bytes|spec_cpu_quota|spec_cpu_period)
         action: keep
-      # Drop non-Docker cgroups (keep / for network, /docker and /docker/*)
+      # Keep only Docker containers and root cgroup (works with both cgroupfs and systemd drivers)
+      # cgroupfs: /docker/<hash>   systemd: /system.slice/docker-<hash>.scope
       - source_labels: [id]
-        regex: /kubepods.*|/podruntime.*|/procd-paused|/restricted
-        action: drop
+        regex: ^/$|.*docker[-/][0-9a-f]{12}.*
+        action: keep

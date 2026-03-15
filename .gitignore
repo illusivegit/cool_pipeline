@@ -64,3 +64,5 @@ otel-collector/.alertmanager-rendered.yml
 PRIVATE_DOCS_ARCHIVE/
 
 session*
+
+workflow*

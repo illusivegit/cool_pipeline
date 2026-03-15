@@ -43,7 +43,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (1 - (sum(rate(http_errors_total[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 1e-10)))",
+          "expr": "100 * (1 - ((sum(rate(http_errors_total[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total[5m])), 1e-10)))",
           "refId": "A"
         }
       ],
@@ -160,7 +160,7 @@
       },
       "targets": [
         {
-          "expr": "100 * sum(rate(http_errors_total[1m])) by (endpoint) / clamp_min(sum(rate(http_requests_total[1m])) by (endpoint), 1e-10)",
+          "expr": "100 * (sum(rate(http_errors_total[1m])) by (endpoint) or 0 * sum(rate(http_requests_total[1m])) by (endpoint)) / clamp_min(sum(rate(http_requests_total[1m])) by (endpoint), 1e-10)",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
